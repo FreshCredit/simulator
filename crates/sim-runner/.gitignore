@@ -1,0 +1,4 @@
+# Simulation output artifacts (generated during runs)
+output/
+*.jsonl
+

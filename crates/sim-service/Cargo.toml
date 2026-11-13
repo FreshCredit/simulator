@@ -1,0 +1,75 @@
+[package]
+name = "sim-service"
+version.workspace = true
+edition.workspace = true
+description = "Job orchestration API for Agent Society Simulator"
+license.workspace = true
+
+# SIM-001: Only depends on sim-* crates, NOT product crates (freshcredit-*)
+# This crate serves as the bridge between the UI (apps/simulator) and the
+# execution layer (sim-runner). It provides:
+# - Artifact serving (manifests, metrics, replay frames)
+# - Job submission and status polling
+# - Health monitoring
+
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+[dependencies]
+# Simulation crates (allowed per SIM-001)
+sim-artifacts = { path = "../sim-artifacts", version = "0.1.0" }
+sim-core = { path = "../sim-core", version = "0.1.0" }
+
+# HTTP server
+axum = { workspace = true, features = ["macros", "ws"] }
+
+tokio = { workspace = true }
+tower-http = { workspace = true, features = ["cors", "fs"] }
+tower = { workspace = true, features = ["util"] }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# CLI
+clap = { workspace = true }
+
+# Utilities
+uuid = { workspace = true, features = ["v4"] }
+chrono = { workspace = true }
+rand = { workspace = true }
+rand_distr = "0.4"
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+tokio-stream = { workspace = true, features = ["sync"] }
+futures = "0.3"
+parking_lot = "0.12"
+thiserror = { workspace = true }
+async-trait = "0.1"
+reqwest = { workspace = true }
+
+# Blockchain anchoring
+sha2 = "0.10"
+hex = "0.4"
+
+# Rate limiting
+tower_governor = { version = "0.5", features = ["axum", "tracing"] }
+governor = "0.8"
+
+[dev-dependencies]
+tempfile = "3.0"
+tower = { workspace = true, features = ["util"] }
+temp-env = "0.3"
+thiserror = { workspace = true }
+futures = "0.3"
+
+[[bin]]
+name = "sim-service"
+path = "src/main.rs"
+
+[lints]
+workspace = true
+
+[package.metadata.cargo-udeps.ignore]
+normal = ["workspace-hack"]

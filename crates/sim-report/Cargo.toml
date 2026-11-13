@@ -1,0 +1,26 @@
+[package]
+name = "sim-report"
+version.workspace = true
+edition.workspace = true
+description = "Report generation for FreshCredit Agent Society Simulator"
+license = "MIT OR Apache-2.0"
+
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+[dependencies]
+sim-core = { path = "../sim-core", version = "0.1.0" }
+
+serde = { workspace = true }
+serde_json = "1.0"
+chrono = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3.8"
+
+[lints]
+workspace = true
+
+[package.metadata.cargo-udeps.ignore]
+normal = ["workspace-hack"]

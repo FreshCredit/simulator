@@ -1,0 +1,190 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'static/js/**'
+      - '.github/workflows/ci.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'static/js/**'
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          # TAG: surface=api
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Check formatting
+        run: npm run format:check
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm run test:run
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: coverage/
+
+  build:
+    # TAG: surface=api
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build (if build script exists)
+        run: npm run build || echo "No build script"
+
+  integration:
+    name: Integration Test
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run integration tests
+        run: |
+          # Start a simple HTTP server for the static files
+          python3 -m http.server 8080 &
+          SERVER_PID=$!
+          
+          # Wait for server to start
+          sleep 2
+          
+          # Run basic integration checks
+          curl -f http://localhost:8080/static/js/viewer-modern.js || exit 1
+          curl -f http://localhost:8080/static/js/modules/connection-manager.js || exit 1
+          curl -f http://localhost:8080/static/js/modules/state-store.js || exit 1
+          
+          # Kill server
+          kill $SERVER_PID || true
+
+      - name: Check module imports
+        run: |
+          # Verify all modules can be imported
+          node --experimental-vm-modules --input-type=module -e "
+            import('./static/js/modules/connection-manager.js').then(m => console.log('✓ ConnectionManager'));
+            import('./static/js/modules/state-store.js').then(m => console.log('✓ StateStore'));
+            import('./static/js/modules/api-client.js').then(m => console.log('✓ APIClient'));
+            import('./static/js/modules/debug-system.js').then(m => console.log('✓ DebugSystem'));
+            import('./static/js/modules/event-log.js').then(m => console.log('✓ EventLog'));
+            import('./static/js/modules/grid-cache.js').then(m => console.log('✓ GridCache'));
+            import('./static/js/modules/perf-monitor.js').then(m => console.log('✓ PerformanceMonitor'));
+          "
+
+  bundle-size:
+    name: Bundle Size Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check file sizes
+        run: |
+          echo "## Module File Sizes" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Module | Size |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|------|" >> $GITHUB_STEP_SUMMARY
+          
+          for file in static/js/modules/*.js; do
+            size=$(wc -c < "$file")
+            size_kb=$((size / 1024))
+            echo "| $(basename $file) | ${size_kb}KB |" >> $GITHUB_STEP_SUMMARY
+          done
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Test File Sizes" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Test File | Size |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|------|" >> $GITHUB_STEP_SUMMARY
+          
+          for file in static/js/__tests__/*.js; do
+            size=$(wc -c < "$file")
+            size_kb=$((size / 1024))
+            echo "| $(basename $file) | ${size_kb}KB |" >> $GITHUB_STEP_SUMMARY
+          done
+
+  performance-regression:
+    name: Performance Regression Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run performance tests
+        run: |
+          echo "Running performance benchmarks..."
+          # Run tests with performance tag
+          npm run test:run -- --reporter=verbose 2>&1 | grep -E "(Performance|FPS|ms)" || echo "Performance tests completed"

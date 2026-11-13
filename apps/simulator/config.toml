@@ -1,0 +1,51 @@
+# FreshCredit Simulator UI Service Configuration
+# 
+# SIM-001: This service has ZERO dependencies on sim-core or product crates.
+# SIM-002: UI reads artifacts only - no simulation engine logic.
+# SIM-006: RBAC enforcement via sim-service API (not this service).
+
+[server]
+# Host to bind to
+host = "0.0.0.0"
+# Port to listen on (can be overridden by PORT env var)
+port = 8081
+
+[sim_service]
+# URL of the sim-service API for job management and artifact retrieval
+# Can be overridden by SIM_SERVICE_URL env var
+url = "http://localhost:8082"
+# Timeout for API requests (seconds)
+timeout = 30
+# Retry attempts for failed requests
+retries = 3
+
+[cors]
+# Allowed origins for CORS (production should be more restrictive)
+# For development, allow localhost origins
+allowed_origins = [
+    "http://localhost:3001",
+    "http://localhost:8081",
+    "https://www.freshcredit.com",
+    "https://app.freshcredit.com"
+]
+
+[logging]
+# Log level: trace, debug, info, warn, error
+level = "info"
+# Log format: json or pretty
+format = "json"
+
+[health]
+# Include sim-service connectivity in health check
+check_sim_service = true
+# Timeout for sim-service health check (seconds)
+sim_service_timeout = 5
+
+[static]
+# Path to static files directory
+path = "static"
+# Path to templates directory
+templates_path = "templates"
+# Cache control max-age for static files (seconds)
+cache_max_age = 3600
+

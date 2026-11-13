@@ -1,0 +1,4266 @@
+/**
+ * Agent Society Simulator Styles
+ * 
+ * SIM-001: This service has zero dependencies on sim-core or product crates
+ * SIM-002: UI reads artifacts only - no simulation engine logic
+ * 
+ * Architectural Compliance Notes:
+ * 
+ * 1. VISUALIZATION LAYERS (Runtime Controls)
+ *    - Located in the "Visualization Layers" section of the UI
+ *    - These toggles can be changed WHILE simulation is running
+ *    - They affect RENDERING ONLY and do not modify simulation state
+ *    - Examples: Agents, Emotional State, Energy, Groups, Identity, 
+ *               Trust Network, Relative
+ *    - Per SIM-002: These are read-only with respect to simulation state
+ * 
+ * 2. SIMULATION PARAMETERS (Pre-run Configuration)
+ *    - Located in the "Simulation Parameters" section of the UI
+ *    - These must be set BEFORE launching a simulation run
+ *    - They affect simulation INITIALIZATION and genome setup
+ *    - Examples: PDE4B Variance, Agent Count, Max Ticks, Stage, Grid Size, Seed
+ *    - Per SIM-002: These are configuration settings, not runtime controls
+ * 
+ * 3. AGENT FILTERS (Client-side Visualization)
+ *    - These filter which agents are rendered
+ *    - They are applied client-side and do not affect simulation
+ *    - Examples: Dominant Trait filter, Status filter
+ *    - Per SIM-002: Pure visualization filters
+ * 
+ * Standalone service - self-contained CSS variables (dark theme)
+ */
+
+/* Design system tokens - canonical dark theme */
+:root {
+    --background: 0 0% 0%;
+    --foreground: 0 0% 98.5%;
+    --card: 0 0% 6%;
+    --card-foreground: 0 0% 98.5%;
+    --muted: 0 0% 8%;
+    --muted-foreground: 0 0% 55%;
+    --accent: 0 0% 8%;
+    --border: 0 0% 100% / 0.15;
+    --primary: 0 0% 98.5%;
+    --primary-foreground: 0 0% 0%;
+    --success: 142 71% 45%;
+    --info: 217 91% 60%;
+}
+
+/* Phase 4: High contrast mode support */
+@media (prefers-contrast: high) {
+    :root {
+        --border: 0 0% 50%;
+    }
+    
+    .layer-toggle input[type="checkbox"],
+    .stage-toggle input[type="checkbox"] {
+        outline: 2px solid hsl(var(--foreground));
+    }
+}
+
+/* Phase 4: Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* Base styles for standalone mode */
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+}
+
+/* Layout */
+.simulator-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1.25rem;
+    background: hsl(var(--card));
+    border-bottom: 1px solid hsl(var(--border));
+}
+
+/* Header Brand Section */
+.header-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+/* FreshCredit Logo - Abril Fatface */
+.freshcredit-logo {
+    font-family: 'Abril Fatface', serif;
+    font-size: 1.25rem;
+    font-weight: 400;
+    color: hsl(var(--foreground));
+    letter-spacing: 0.02em;
+}
+
+.header-divider {
+    color: hsl(var(--muted-foreground));
+    font-size: 1rem;
+    font-weight: 300;
+}
+
+.header-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+    margin: 0;
+}
+
+/* Header Actions Section */
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+/* Login Link */
+.login-link {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: hsl(var(--primary));
+    text-decoration: none;
+    padding: 0.375rem 0.75rem;
+    border-radius: 0.375rem;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.login-link:hover {
+    background: hsl(var(--primary) / 0.1);
+    color: hsl(var(--primary));
+}
+
+/* Phase 4: Export buttons in header */
+.simulator-header .btn-sm {
+    padding: 0.25rem 0.625rem;
+    font-size: 0.75rem;
+}
+
+.simulator-main {
+    display: flex;
+    flex: 1;
+    height: calc(100vh - 57px);
+    overflow: hidden;
+}
+
+.simulator-sidebar {
+    width: 280px;
+    flex-shrink: 0;
+    background: hsl(var(--card));
+    border-right: 1px solid hsl(var(--border));
+    overflow-y: auto;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    max-height: 100vh;
+    transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1), padding 0.25s ease;
+    position: relative;
+}
+
+.simulator-sidebar.collapsed {
+    width: 0 !important;
+    min-width: 0 !important;
+    max-width: 0 !important;
+    padding: 0 !important;
+    border-right: none !important;
+    overflow: hidden !important;
+    visibility: hidden;
+}
+
+.sim-sidebar-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    background: hsl(var(--muted));
+    border: 1px solid hsl(var(--border));
+    border-radius: 4px;
+    cursor: pointer;
+    color: hsl(var(--muted-foreground));
+    transition: background 0.15s, color 0.15s;
+}
+
+.sim-sidebar-toggle-btn:hover {
+    background: hsl(var(--accent));
+    color: hsl(var(--foreground));
+}
+
+.sim-sidebar-expand-btn {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    z-index: 50;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    cursor: pointer;
+    transition: transform 0.15s, border-color 0.15s;
+}
+
+.sim-sidebar-expand-btn:hover {
+    transform: translateX(2px);
+    border-color: hsl(var(--foreground));
+}
+
+.sim-sidebar-expand-btn.hidden {
+    display: none !important;
+}
+
+/* Ensure control sections don't expand beyond container */
+.simulator-sidebar > .control-section {
+    flex-shrink: 0;
+}
+
+/* Event log panel stays at bottom with fixed height */
+.simulator-sidebar > #activity-log-panel {
+    flex-shrink: 0;
+    margin-top: auto;
+}
+
+/* Hypothesis Popover & Info Toggle */
+.hypothesis-info-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    background: transparent;
+    border: 1px solid hsl(var(--border));
+    border-radius: 4px;
+    color: hsl(var(--muted-foreground));
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.hypothesis-info-btn:hover,
+.hypothesis-info-btn.active {
+    color: hsl(var(--foreground));
+    border-color: hsl(var(--foreground));
+    background: hsl(var(--muted) / 0.5);
+}
+
+.hypothesis-popover {
+    margin-top: 0.5rem;
+    margin-bottom: 0.75rem;
+    padding: 0.75rem;
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: 6px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+    animation: fadeInPopover 0.15s ease;
+}
+
+@keyframes fadeInPopover {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.hypothesis-popover.hidden {
+    display: none !important;
+}
+
+/* Simulation Action Bar (Top of Sidebar) */
+#simulation-action-bar {
+    margin-bottom: 1.25rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid hsl(var(--border));
+}
+
+#simulation-action-bar .play-section {
+    display: block;
+}
+
+#simulation-action-bar .play-section.hidden {
+    display: none !important;
+}
+
+/* Telemetry Header & Stat Pills */
+.v4-stat-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.125rem 0.375rem;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid hsl(var(--border));
+    font-size: 0.6875rem;
+    border-radius: 2px;
+}
+
+.v4-telemetry-left {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.v4-telemetry-stats {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.v4-telemetry-right {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* Control Sections */
+.control-section {
+    margin-bottom: 1.5rem;
+}
+
+.control-section-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: hsl(var(--muted-foreground));
+    margin-bottom: 0.75rem;
+}
+
+/* Connection Indicator */
+.connection-indicator {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.25rem 0.625rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.connection-indicator .status-dot {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+.connection-indicator.connecting {
+    background: hsl(45 93% 47% / 0.15);
+    color: hsl(45 93% 47%);
+}
+
+.connection-indicator.connecting .status-dot {
+    background: hsl(45 93% 47%);
+}
+
+.connection-indicator.connected {
+    background: hsl(var(--success) / 0.15);
+    color: hsl(var(--success));
+}
+
+.connection-indicator.connected .status-dot {
+    background: hsl(var(--success));
+    animation: none;
+}
+
+.connection-indicator.disconnected {
+    background: hsl(0 84% 60% / 0.15);
+    color: hsl(0 84% 60%);
+}
+
+.connection-indicator.disconnected .status-dot {
+    background: hsl(0 84% 60%);
+    animation: none;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* Layer Toggles */
+.layer-toggles {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.layer-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    position: relative;
+}
+
+/* Hide default checkbox */
+.layer-toggle input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+/* Toggle Switch Style - Canonical Sharp Square Design (Matches Calculator Style) */
+.toggle-switch {
+    position: relative;
+    width: 2.25rem;
+    height: 1.25rem;
+    background: hsl(var(--muted));
+    border: 1px solid hsl(var(--foreground));
+    border-radius: 0;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+    flex-shrink: 0;
+}
+
+/* Provenance Badges for Simulation Parameters (SIM-016) */
+.provenance-badge {
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    padding: 1px 4px;
+    border-radius: 0;
+    margin-left: 0.35rem;
+    text-transform: uppercase;
+}
+.provenance-artifact {
+    background: hsla(142, 76%, 36%, 0.15);
+    color: hsl(142, 76%, 45%);
+    border: 1px solid hsla(142, 76%, 36%, 0.4);
+}
+.provenance-law {
+    background: hsla(217, 91%, 60%, 0.15);
+    color: hsl(217, 91%, 65%);
+    border: 1px solid hsla(217, 91%, 60%, 0.4);
+}
+.provenance-scaffold {
+    background: hsl(var(--muted));
+    color: hsl(var(--muted-foreground));
+    border: 1px solid hsl(var(--border));
+}
+
+.range-window-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+}
+.range-indicator-point {
+    position: absolute;
+    width: 3px;
+    height: 14px;
+    background: hsl(var(--primary));
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    z-index: 2;
+}
+
+/* Provenance Badges for Simulation Parameters (SIM-016) */
+.provenance-badge {
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    padding: 1px 4px;
+    border-radius: 0;
+    margin-left: 0.35rem;
+    text-transform: uppercase;
+}
+.provenance-artifact {
+    background: hsla(142, 76%, 36%, 0.15);
+    color: hsl(142, 76%, 45%);
+    border: 1px solid hsla(142, 76%, 36%, 0.4);
+}
+.provenance-law {
+    background: hsla(217, 91%, 60%, 0.15);
+    color: hsl(217, 91%, 65%);
+    border: 1px solid hsla(217, 91%, 60%, 0.4);
+}
+.provenance-scaffold {
+    background: hsl(var(--muted));
+    color: hsl(var(--muted-foreground));
+    border: 1px solid hsl(var(--border));
+}
+
+.range-window-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+}
+.range-indicator-point {
+    position: absolute;
+    width: 3px;
+    height: 14px;
+    background: hsl(var(--primary));
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    z-index: 2;
+}
+
+.toggle-switch::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 0.875rem;
+    height: 0.875rem;
+    background: hsl(var(--background));
+    border: 1px solid hsl(var(--foreground));
+    border-radius: 0;
+    transition: transform 0.2s ease;
+    box-shadow: none;
+}
+
+/* Checked state */
+.layer-toggle input[type="checkbox"]:checked + .toggle-switch {
+    background: hsl(var(--foreground));
+}
+
+.layer-toggle input[type="checkbox"]:checked + .toggle-switch::after {
+    transform: translateX(1rem);
+    background: hsl(var(--background));
+}
+
+/* Disabled state */
+.layer-toggle input[type="checkbox"]:disabled + .toggle-switch {
+    background: hsl(var(--muted) / 0.5);
+    border-color: hsl(var(--muted-foreground) / 0.5);
+    cursor: not-allowed;
+}
+
+.layer-toggle input[type="checkbox"]:disabled + .toggle-switch + .layer-label {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.layer-label {
+    font-size: 0.875rem;
+    color: hsl(var(--foreground));
+}
+
+/* 
+ * 9-LAYER MECHANISM TOGGLES (Phase 2)
+ * Organized by scientific layer hierarchy
+ */
+.layer-group {
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid hsl(var(--border));
+}
+
+.layer-group:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.layer-group-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: hsl(var(--muted-foreground));
+    margin: 0 0 0.5rem 0;
+    padding-bottom: 0.25rem;
+    border-bottom: 1px solid hsl(var(--border) / 0.5);
+}
+
+.layer-description {
+    font-size: 0.75rem;
+    color: hsl(var(--muted-foreground));
+    margin: -0.25rem 0 0.5rem 0;
+    font-style: italic;
+}
+
+/* Layer badges for core vs optional mechanisms */
+.layer-badge {
+    font-size: 0.625rem;
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    margin-left: auto;
+    font-weight: 500;
+    text-transform: uppercase;
+}
+
+.layer-badge.core {
+    background: hsl(var(--success) / 0.2);
+    color: hsl(var(--success));
+}
+
+.layer-badge.optional {
+    background: hsl(var(--muted));
+    color: hsl(var(--muted-foreground));
+}
+
+/* Layer configuration panels (expandable) */
+.layer-config {
+    margin: 0.5rem 0 0.5rem 1.5rem;
+    padding: 0.75rem;
+    background: hsl(var(--muted) / 0.5);
+    border-radius: 0.375rem;
+    border-left: 2px solid hsl(var(--border));
+}
+
+.layer-config .form-group.compact {
+    margin-bottom: 0.5rem;
+}
+
+.layer-config .form-group.compact:last-child {
+    margin-bottom: 0;
+}
+
+.layer-config .form-label {
+    font-size: 0.75rem;
+    margin-bottom: 0.25rem;
+}
+
+.dial-value {
+    font-size: 0.75rem;
+    color: hsl(var(--muted-foreground));
+    margin-left: 0.5rem;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+/* Control subsection for sliders within accordions */
+.control-subsection {
+    margin: 0.75rem 0 0.5rem 1.5rem;
+    padding: 0.75rem;
+    background: hsl(var(--muted) / 0.3);
+    border-radius: 0.375rem;
+    border-left: 2px solid hsl(var(--border));
+}
+
+.control-subsection .form-label {
+    font-size: 0.75rem;
+    color: hsl(var(--muted-foreground));
+    margin-bottom: 0.5rem;
+    display: block;
+}
+
+/* Visualization Layers - initially hidden until play clicked */
+#visualization-layers-section {
+    display: none;
+}
+
+/* ============================================================================
+   Visualization Layers Accordion Styles
+   ============================================================================ */
+
+/* Master accordion for visualization layers */
+.viz-layers-accordion {
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.5rem;
+    overflow: hidden;
+}
+
+.viz-layers-accordion .accordion-header {
+    background: hsl(var(--muted) / 0.4);
+    font-weight: 600;
+}
+
+.viz-layers-accordion .accordion-body {
+    padding: 0.5rem;
+    background: hsl(var(--background));
+}
+
+/* Group accordions within visualization layers */
+.viz-group-accordion {
+    border: 1px solid hsl(var(--border) / 0.6);
+    border-radius: 0.375rem;
+    margin-bottom: 0.5rem;
+    overflow: hidden;
+}
+
+.viz-group-accordion:last-child {
+    margin-bottom: 0;
+}
+
+.viz-group-accordion .accordion-header {
+    background: hsl(var(--muted) / 0.2);
+    padding: 0.5rem 0.625rem;
+    font-size: 0.8125rem;
+}
+
+.viz-group-accordion .accordion-body {
+    padding: 0.5rem;
+    border-top: 1px solid hsl(var(--border) / 0.4);
+}
+
+/* Individual layer item container */
+.viz-layer-item {
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid hsl(var(--border) / 0.3);
+}
+
+.viz-layer-item:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.viz-layer-item .layer-toggle {
+    margin-bottom: 0.375rem;
+}
+
+/* Opacity control styling */
+.opacity-control {
+    margin-left: 2.25rem;
+    padding: 0.375rem 0.5rem;
+    background: hsl(var(--muted) / 0.2);
+    border-radius: 0.25rem;
+    border-left: 2px solid hsl(var(--border) / 0.5);
+}
+
+.opacity-label {
+    display: block;
+    font-size: 0.6875rem;
+    color: hsl(var(--muted-foreground));
+    margin-bottom: 0.25rem;
+    font-weight: 500;
+}
+
+.opacity-control .filter-range {
+    gap: 0.375rem;
+}
+
+/* Canonical Thin Line & Square Slider Standard (Global Black/White Design) */
+input[type="range"],
+.range-slider,
+.opacity-control .range-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 2px !important;
+    background: hsl(var(--foreground)) !important;
+    border-radius: 0 !important;
+    border: none !important;
+    outline: none !important;
+    padding: 0 !important;
+    margin: 8px 0 !important;
+    box-shadow: none !important;
+    cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-runnable-track,
+.range-slider::-webkit-slider-runnable-track,
+.opacity-control .range-slider::-webkit-slider-runnable-track {
+    width: 100%;
+    height: 2px !important;
+    background: hsl(var(--foreground)) !important;
+    border-radius: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+input[type="range"]::-webkit-slider-thumb,
+.range-slider::-webkit-slider-thumb,
+.opacity-control .range-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px !important;
+    height: 14px !important;
+    background: hsl(var(--foreground)) !important;
+    border-radius: 0 !important;
+    border: none !important;
+    margin-top: -6px !important;
+    box-shadow: none !important;
+    cursor: pointer;
+}
+
+input[type="range"]::-moz-range-track,
+.range-slider::-moz-range-track,
+.opacity-control .range-slider::-moz-range-track {
+    width: 100%;
+    height: 2px !important;
+    background: hsl(var(--foreground)) !important;
+    border-radius: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+input[type="range"]::-moz-range-thumb,
+.range-slider::-moz-range-thumb,
+.opacity-control .range-slider::-moz-range-thumb {
+    width: 14px !important;
+    height: 14px !important;
+    background: hsl(var(--foreground)) !important;
+    border-radius: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    cursor: pointer;
+}
+
+.opacity-control .range-value {
+    font-size: 0.75rem;
+    min-width: 2rem;
+    color: hsl(var(--foreground));
+    font-family: 'JetBrains Mono', monospace;
+}
+
+/* Compact spacing for layer toggles in viz layers */
+.viz-group-accordion .accordion-body .layer-toggle {
+    margin-bottom: 0.25rem;
+    padding: 0.125rem 0;
+}
+
+/* 
+ * PHASE 3: SIMPLIFIED DEFAULT UI
+ * Quick start cards, play button, accordion
+ */
+
+/* Quick Start Section */
+.quick-start {
+    background: linear-gradient(135deg, hsl(var(--muted) / 0.3) 0%, hsl(var(--muted) / 0.1) 100%);
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.75rem;
+    padding: 1.25rem;
+}
+
+/* Preset Cards */
+.preset-cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+}
+
+.preset-card {
+    background: hsl(var(--background));
+    border: 2px solid hsl(var(--border));
+    border-radius: 0.625rem;
+    padding: 1rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.preset-card:hover {
+    border-color: hsl(var(--muted-foreground));
+    transform: translateY(-2px);
+}
+
+.preset-card.active {
+    border-color: hsl(var(--success));
+    background: hsl(var(--success) / 0.05);
+}
+
+.preset-card .preset-icon {
+    font-size: 1.75rem;
+    margin-bottom: 0.5rem;
+}
+
+.preset-card .preset-name {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+    margin-bottom: 0.25rem;
+}
+
+.preset-card .preset-desc {
+    font-size: 0.6875rem;
+    color: hsl(var(--muted-foreground));
+    line-height: 1.3;
+}
+
+/* 
+ * Play Button - Style Cannon Compliant
+ * Uses brand colors (hsl(var(--primary))) instead of green
+ */
+.btn-play {
+    width: 100%;
+    padding: 0.875rem 1rem;
+    background: hsl(var(--primary));
+    border: 1px solid hsl(var(--primary));
+    border-radius: 0.5rem;
+    color: hsl(var(--primary-foreground));
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    transition: all 0.15s ease;
+}
+
+.btn-play:hover {
+    background: hsl(var(--primary) / 0.9);
+}
+
+.btn-play:active {
+    transform: translateY(1px);
+}
+
+.btn-play:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Accordion Items for Mechanism Layers */
+.accordion-item {
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.375rem;
+    margin-bottom: 0.5rem;
+    overflow: hidden;
+}
+
+/* Locked Mechanism Layer State */
+.mechanism-locked {
+    border-color: hsl(var(--muted-foreground) / 0.3);
+}
+
+.mechanism-locked .locked-header {
+    background: hsl(var(--muted) / 0.2);
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.mechanism-locked .locked-header:hover {
+    background: hsl(var(--muted) / 0.2);
+}
+
+.locked-message {
+    font-size: 0.75rem;
+    color: hsl(var(--muted-foreground));
+    text-align: center;
+    margin: 0.5rem 0;
+    font-style: italic;
+}
+
+/* Layer accordions when locked */
+.mechanism-layers.locked .layer-accordion-item {
+    display: none;
+}
+
+.mechanism-layers.locked #mechanism-locked-view {
+    display: block;
+}
+
+/* Geography Layer Configuration */
+#config-geography .form-group.compact {
+    margin-bottom: 0.625rem;
+}
+
+#config-geography .layer-toggle.compact-toggle {
+    margin-bottom: 0.375rem;
+    padding: 0.25rem 0;
+}
+
+#config-geography .layer-toggle.compact-toggle:last-of-type {
+    margin-bottom: 0;
+}
+
+/* Form input styling for geography params */
+.form-input.geography-param {
+    width: 100%;
+    padding: 0.375rem 0.5rem;
+    font-size: 0.75rem;
+    font-family: 'JetBrains Mono', monospace;
+    background: hsl(var(--background));
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.375rem;
+    color: hsl(var(--foreground));
+    transition: border-color 0.15s;
+}
+
+.form-input.geography-param:focus {
+    outline: none;
+    border-color: hsl(var(--primary));
+}
+
+.form-input.geography-param:disabled {
+    background: hsl(var(--muted) / 0.3);
+    color: hsl(var(--muted-foreground));
+    cursor: not-allowed;
+}
+
+/* Disabled state for geography parameters */
+.geography-param:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.geography-param:disabled + .toggle-switch {
+    background: hsl(var(--muted) / 0.3);
+    cursor: not-allowed;
+}
+
+.geography-param:disabled + .toggle-switch + .layer-label {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.accordion-header {
+    width: 100%;
+    padding: 0.625rem 0.75rem;
+    background: hsl(var(--muted) / 0.3);
+    border: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: hsl(var(--foreground));
+    transition: background 0.15s ease;
+}
+
+.accordion-header:hover {
+    background: hsl(var(--muted) / 0.5);
+}
+
+.accordion-header .accordion-icon {
+    font-size: 0.625rem;
+    transition: transform 0.2s ease;
+    color: hsl(var(--muted-foreground));
+}
+
+.accordion-header[aria-expanded="true"] .accordion-icon,
+.accordion-header.active .accordion-icon {
+    transform: rotate(180deg);
+}
+
+.accordion-body {
+    padding: 0.75rem;
+    background: hsl(var(--background));
+    border-top: 1px solid hsl(var(--border));
+}
+
+.accordion-body.hidden {
+    display: none;
+}
+
+/* 
+ * Issue 2 Fix: Layer toggle spacing inside accordion bodies
+ * Compact spacing between toggles
+ */
+.accordion-body .layer-toggle {
+    margin-bottom: 0.4375rem;
+    padding: 0.1875rem 0;
+}
+
+.accordion-body .layer-toggle:last-child {
+    margin-bottom: 0.125rem;
+}
+
+/* Additional spacing for layer labels to improve readability */
+.accordion-body .layer-label {
+    line-height: 1.4;
+}
+
+/* Stats Section (Hidden initially) */
+#stats-section.hidden {
+    display: none;
+}
+
+/* Tick Counter in Stats Section */
+.tick-counter {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+    padding: 0.5rem;
+    background: hsl(var(--muted) / 0.5);
+    border-radius: 0.375rem;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.tick-label {
+    font-size: 0.75rem;
+    color: hsl(var(--muted-foreground));
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.tick-value {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+}
+
+/* Play Section (Hidden until experiment selected) */
+#play-section {
+    margin-top: 1rem;
+}
+
+/* Layer config inside accordion */
+.accordion-body .layer-config {
+    margin: 0.5rem 0 0.5rem 1.5rem;
+    padding: 0.625rem;
+    background: hsl(var(--muted) / 0.4);
+    border-radius: 0.375rem;
+    border-left: 2px solid hsl(var(--border));
+}
+
+/* Simple Speed Control */
+.speed-control-simple {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    background: hsl(var(--muted) / 0.3);
+    border-radius: 0.5rem;
+}
+
+.speed-control-simple label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: hsl(var(--foreground));
+    min-width: 3rem;
+}
+
+.speed-control-simple input[type="range"] {
+    flex: 1;
+    height: 2px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: hsl(var(--foreground));
+    border-radius: 0;
+    outline: none;
+}
+
+.speed-control-simple input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    background: hsl(var(--foreground));
+    border-radius: 0;
+    border: none;
+    margin-top: -7px;
+    box-shadow: none;
+    cursor: pointer;
+}
+
+.speed-control-simple input[type="range"]::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    background: hsl(var(--foreground));
+    border-radius: 0;
+    border: none;
+    box-shadow: none;
+    cursor: pointer;
+}
+
+.speed-control-simple #speed-value-simple {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: hsl(var(--success));
+    min-width: 3rem;
+    text-align: right;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+/* Accordion for Advanced Controls */
+.advanced-controls {
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.625rem;
+    overflow: hidden;
+}
+
+.accordion-toggle {
+    width: 100%;
+    padding: 0.875rem 1rem;
+    background: hsl(var(--muted) / 0.3);
+    border: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    color: hsl(var(--foreground));
+    transition: background 0.15s ease;
+}
+
+.accordion-toggle:hover {
+    background: hsl(var(--muted) / 0.5);
+}
+
+.accordion-toggle .accordion-icon {
+    transition: transform 0.2s ease;
+    font-size: 0.75rem;
+}
+
+.accordion-toggle.active .accordion-icon {
+    transform: rotate(180deg);
+}
+
+.accordion-content {
+    padding: 1rem;
+    background: hsl(var(--background));
+    border-top: 1px solid hsl(var(--border));
+}
+
+.accordion-content.hidden {
+    display: none;
+}
+
+/* Parameter & Stage Selectors */
+.preset-select,
+.stage-select {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    background: hsl(var(--muted));
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.5rem;
+    color: hsl(var(--foreground));
+    cursor: pointer;
+    transition: border-color 0.15s ease;
+}
+
+.preset-select:hover,
+.stage-select:hover {
+    border-color: hsl(var(--muted-foreground));
+}
+
+.preset-select:focus,
+.stage-select:focus {
+    outline: none;
+    border-color: hsl(var(--primary));
+}
+
+.preset-description {
+    margin-top: 0.5rem;
+    font-size: 0.75rem;
+    color: hsl(var(--muted-foreground));
+    font-style: italic;
+}
+
+/* 
+ * SIM-002 Note: Stage toggles have been removed.
+ * Stage selection is now handled via a single dropdown in Simulation Parameters.
+ * This eliminates redundant UI controls and clarifies the pre-simulation 
+ * configuration vs runtime visualization separation.
+ */
+
+/* Stats Grid */
+.stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+}
+
+.stat-item {
+    display: flex;
+    flex-direction: column;
+    padding: 0.75rem;
+    background: hsl(var(--muted) / 0.5);
+    border-radius: 0.5rem;
+}
+
+.stat-label {
+    font-size: 0.625rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: hsl(var(--muted-foreground));
+}
+
+.stat-value {
+    font-size: 1.25rem;
+    font-weight: 600;
+    font-family: 'JetBrains Mono', monospace;
+    color: hsl(var(--foreground));
+}
+
+/* Canvas Container */
+.canvas-container {
+    flex: 1;
+    position: relative;
+    background: hsl(var(--background));
+    overflow: hidden;
+}
+
+#simulation-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+/* Canvas Overlay */
+.canvas-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: hsl(var(--background) / 0.9);
+}
+
+.canvas-overlay.hidden {
+    display: none;
+}
+
+.overlay-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 2rem;
+}
+
+/* Buttons */
+.btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: hsl(var(--foreground));
+    background: hsl(var(--muted));
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: background-color 0.15s, border-color 0.15s;
+}
+
+.btn-secondary:hover {
+    background: hsl(var(--accent));
+    border-color: hsl(var(--accent));
+}
+
+/* Agent Rendering (canvas layer colors) */
+.agent-alive { fill: hsl(var(--success)); }
+.agent-dead { fill: hsl(var(--muted-foreground)); }
+.agent-verified { stroke: hsl(var(--info)); stroke-width: 2; }
+.agent-unverified { stroke: none; }
+
+/* Identity Badge styling */
+.identity-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    background: hsl(var(--info));
+    border-radius: 50%;
+    border: 2px solid white;
+    font-size: 10px;
+    color: white;
+    font-weight: bold;
+}
+
+/* Reputation ring colors - graded from red (low) to green (high) */
+.reputation-ring-low { stroke: hsl(0, 80%, 45%); }
+.reputation-ring-medium-low { stroke: hsl(30, 80%, 50%); }
+.reputation-ring-medium { stroke: hsl(60, 80%, 50%); }
+.reputation-ring-medium-high { stroke: hsl(90, 80%, 50%); }
+.reputation-ring-high { stroke: hsl(120, 80%, 50%); }
+
+/* Terrain heatmap legend colors */
+.terrain-valley { background: hsl(120, 60%, 15%); }
+.terrain-lowland { background: hsl(100, 50%, 40%); }
+.terrain-mid { background: hsl(60, 40%, 55%); }
+.terrain-highland { background: hsl(35, 35%, 50%); }
+.terrain-peak { background: hsl(0, 10%, 85%); }
+
+/* DOCAS color mapping (5 neuromodulators) */
+:root {
+    --docas-d: 120, 70%, 50%;  /* Dopamine: Green (reward) */
+    --docas-o: 200, 70%, 50%;  /* Oxytocin: Blue (bonding) */
+    --docas-c: 40, 80%, 50%;   /* Cortisol: Orange (stress) */
+    --docas-a: 0, 70%, 50%;    /* Adrenaline: Red (action) */
+    --docas-s: 280, 60%, 50%;  /* Serotonin: Purple (calm) */
+}
+
+/* Job Form Styles */
+.job-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.form-group label {
+    font-size: 0.75rem;
+    color: hsl(var(--muted-foreground));
+}
+
+.form-group input:not([type="range"]):not([type="checkbox"]):not([type="radio"]),
+.form-group select {
+    padding: 0.375rem 0.5rem;
+    font-size: 0.75rem;
+    background: hsl(var(--muted));
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.375rem;
+    color: hsl(var(--foreground));
+}
+
+.form-group input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):focus,
+.form-group select:focus {
+    outline: none;
+    border-color: hsl(var(--foreground));
+}
+
+.btn-primary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: hsl(var(--primary-foreground));
+    background: hsl(var(--primary));
+    border: none;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    margin-top: 0.5rem;
+    transition: opacity 0.15s;
+}
+
+.btn-primary:hover {
+    opacity: 0.9;
+}
+
+.btn-secondary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: hsl(var(--foreground));
+    background: hsl(var(--muted));
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.375rem;
+    cursor: pointer;
+    transition: opacity 0.15s;
+}
+
+.btn-secondary:hover {
+    opacity: 0.9;
+    background: hsl(var(--accent));
+}
+
+/* Experiment Info Panel */
+.experiment-details {
+    background: hsl(var(--muted) / 0.5);
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.5rem;
+    padding: 0.75rem;
+}
+
+.exp-name {
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+    color: hsl(var(--foreground));
+}
+
+.exp-paper-badge {
+    display: inline-block;
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 0.125rem 0.375rem;
+    background: hsl(var(--primary) / 0.15);
+    color: hsl(var(--primary));
+    border-radius: 0.25rem;
+    margin-bottom: 0.5rem;
+}
+
+.exp-description {
+    font-size: 0.75rem;
+    color: hsl(var(--muted-foreground));
+    margin-bottom: 0.75rem;
+    line-height: 1.4;
+}
+
+.acceptance-criteria h4 {
+    font-size: 0.7rem;
+    font-weight: 600;
+    margin-bottom: 0.375rem;
+    color: hsl(var(--foreground));
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+}
+
+.criteria-list {
+    list-style: none;
+    margin: 0 0 0.75rem 0;
+    padding: 0;
+}
+
+.criteria-list li {
+    font-size: 0.7rem;
+    padding: 0.25rem 0.375rem;
+    margin-bottom: 0.25rem;
+    background: hsl(var(--background));
+    border-radius: 0.25rem;
+    border-left: 2px solid hsl(var(--success));
+}
+
+.criteria-list li.pending {
+    border-left-color: hsl(var(--warning));
+    background: hsl(var(--warning) / 0.1);
+}
+
+.criteria-list li.failed {
+    border-left-color: hsl(var(--danger));
+    background: hsl(var(--danger) / 0.1);
+}
+
+.experiment-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.experiment-actions .btn {
+    flex: 1;
+    font-size: 0.7rem;
+    padding: 0.375rem 0.5rem;
+    margin: 0;
+}
+
+/* Simulation Parameters Form */
+.form-group {
+    margin-bottom: 0.75rem;
+}
+
+.form-group:last-child {
+    margin-bottom: 0;
+}
+
+.form-label {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: hsl(var(--foreground));
+    margin-bottom: 0.25rem;
+}
+
+.form-input {
+    width: 100%;
+    padding: 0.375rem 0.5rem;
+    font-size: 0.75rem;
+    font-family: 'JetBrains Mono', monospace;
+    background: hsl(var(--background));
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.375rem;
+    color: hsl(var(--foreground));
+    transition: border-color 0.15s;
+}
+
+.form-input:focus {
+    outline: none;
+    border-color: hsl(var(--primary));
+}
+
+.form-hint {
+    display: block;
+    font-size: 0.65rem;
+    color: hsl(var(--muted-foreground));
+    margin-top: 0.25rem;
+}
+
+.param-actions {
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid hsl(var(--border));
+}
+
+.btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.65rem;
+}
+
+/* 
+ * SIM-002 Note: Lambda statistics display has been removed from the UI.
+ * PDE4B variance is now treated as a standard simulation parameter.
+ * Statistical distributions are computed server-side and can be accessed
+ * via the /api/stats/lambda endpoint if needed for research analysis.
+ */
+
+/**
+ * Experiment Workflow (Phase 3)
+ * 5-step sequential workflow for configuring simulations
+ */
+
+.experiment-workflow {
+    position: relative;
+}
+
+/* Step Indicators */
+.workflow-steps {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+    padding: 0.5rem;
+    background: hsl(var(--muted) / 0.3);
+    border-radius: 0.5rem;
+}
+
+.step-indicator {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    cursor: pointer;
+    opacity: 0.5;
+    transition: opacity 0.2s ease;
+}
+
+.step-indicator.active {
+    opacity: 1;
+}
+
+.step-indicator.completed {
+    opacity: 0.8;
+}
+
+.step-indicator.completed .step-number {
+    background: hsl(var(--success));
+    color: hsl(var(--success-foreground));
+}
+
+.step-number {
+    width: 1.5rem;
+    height: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: hsl(var(--muted));
+    border-radius: 50%;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+}
+
+.step-indicator.active .step-number {
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+}
+
+.step-label {
+    font-size: 0.625rem;
+    color: hsl(var(--muted-foreground));
+}
+
+/* Workflow Steps */
+.workflow-step {
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.step-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+    margin: 0 0 0.75rem 0;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid hsl(var(--border));
+}
+
+.step-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid hsl(var(--border));
+}
+
+.step-actions .btn {
+    flex: 1;
+}
+
+/* Input Validation */
+.input-with-validation {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.input-with-validation .form-input {
+    flex: 1;
+}
+
+.validation-icon {
+    font-size: 1rem;
+}
+
+.validation-icon.valid::before {
+    content: '✓';
+    color: hsl(var(--success));
+}
+
+.validation-icon.invalid::before {
+    content: '✗';
+    color: hsl(var(--destructive));
+}
+
+.validation-warning {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    margin-top: 0.375rem;
+    padding: 0.375rem 0.5rem;
+    background: hsl(var(--warning) / 0.1);
+    border-left: 2px solid hsl(var(--warning));
+    border-radius: 0 0.25rem 0.25rem 0;
+    font-size: 0.6875rem;
+    color: hsl(var(--warning));
+}
+
+.validation-warning.hidden {
+    display: none;
+}
+
+/* Input with Button */
+.input-with-button {
+    display: flex;
+    gap: 0.375rem;
+}
+
+.input-with-button .form-input {
+    flex: 1;
+}
+
+.input-with-button .btn-sm {
+    padding: 0.375rem 0.5rem;
+    font-size: 0.875rem;
+}
+
+/* Variance Effects Summary */
+.variance-effects-summary {
+    margin-top: 0.75rem;
+    padding: 0.5rem;
+    background: hsl(var(--muted) / 0.3);
+    border-radius: 0.375rem;
+}
+
+.effect-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.effect-label {
+    font-size: 0.625rem;
+    color: hsl(var(--muted-foreground));
+}
+
+.effect-value {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: hsl(var(--foreground));
+}
+
+/* Stage Dependencies */
+.stage-dependencies {
+    margin: 1rem 0;
+    padding: 0.75rem;
+    background: hsl(var(--muted) / 0.2);
+    border-radius: 0.5rem;
+}
+
+.stage-dependencies h4 {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+    margin: 0 0 0.5rem 0;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+}
+
+.dependency-chain {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    margin-bottom: 0.375rem;
+}
+
+.dependency-node {
+    width: 1.5rem;
+    height: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: hsl(var(--muted));
+    border-radius: 50%;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: hsl(var(--muted-foreground));
+}
+
+.dependency-node.active {
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+}
+
+.dependency-arrow {
+    font-size: 0.75rem;
+    color: hsl(var(--muted-foreground));
+}
+
+.dependency-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.5625rem;
+    color: hsl(var(--muted-foreground));
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+}
+
+/* Stage Mechanisms */
+.stage-mechanisms {
+    margin-top: 0.75rem;
+}
+
+.stage-mechanisms h4 {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+    margin: 0 0 0.375rem 0;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+}
+
+.mechanism-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.mechanism {
+    font-size: 0.6875rem;
+    padding: 0.25rem 0;
+    color: hsl(var(--muted-foreground));
+}
+
+.mechanism.enabled {
+    color: hsl(var(--foreground));
+}
+
+/* Configuration Summary */
+.config-summary {
+    background: hsl(var(--muted) / 0.2);
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.5rem;
+    padding: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.config-summary h4 {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+    margin: 0 0 0.5rem 0;
+}
+
+.summary-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.375rem;
+}
+
+.summary-item {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.6875rem;
+    padding: 0.25rem 0;
+}
+
+.summary-label {
+    color: hsl(var(--muted-foreground));
+}
+
+.summary-value {
+    font-weight: 500;
+    color: hsl(var(--foreground));
+    font-family: 'JetBrains Mono', monospace;
+}
+
+/* Acceptance Criteria Preview */
+.acceptance-criteria-preview {
+    margin-bottom: 1rem;
+}
+
+.acceptance-criteria-preview h4 {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+    margin: 0 0 0.5rem 0;
+}
+
+.criteria-list-preview {
+    background: hsl(var(--muted) / 0.2);
+    border-radius: 0.375rem;
+    padding: 0.5rem;
+}
+
+.no-criteria {
+    font-size: 0.6875rem;
+    color: hsl(var(--muted-foreground));
+    font-style: italic;
+    margin: 0;
+}
+
+.criterion-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.375rem 0;
+    border-bottom: 1px solid hsl(var(--border) / 0.5);
+    font-size: 0.6875rem;
+}
+
+.criterion-item:last-child {
+    border-bottom: none;
+}
+
+.criterion-name {
+    color: hsl(var(--foreground));
+}
+
+.criterion-target {
+    font-family: 'JetBrains Mono', monospace;
+    color: hsl(var(--muted-foreground));
+}
+
+/* Launch Actions */
+.launch-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.launch-actions .btn {
+    flex: 1;
+}
+
+.launch-actions .btn-launch {
+    background: hsl(var(--success));
+    color: hsl(var(--success-foreground));
+    font-weight: 600;
+}
+
+.launch-actions .btn-launch:hover {
+    background: hsl(var(--success) / 0.9);
+}
+
+/**
+ * Simulation Purpose Section
+ * Provides context for users about what the simulation demonstrates
+ */
+.simulation-purpose {
+    background: hsl(var(--muted) / 0.3);
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.5rem;
+    padding: 0.75rem;
+}
+
+.purpose-text {
+    font-size: 0.75rem;
+    color: hsl(var(--foreground));
+    line-height: 1.5;
+    margin-bottom: 0.5rem;
+}
+
+.purpose-text:last-of-type {
+    margin-bottom: 0.75rem;
+}
+
+.hypothesis-box {
+    background: hsl(var(--muted) / 0.25);
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.375rem;
+    padding: 0.75rem;
+    font-family: inherit;
+}
+
+.hypothesis-box h4 {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: hsl(var(--muted-foreground));
+    margin: 0 0 0.375rem 0;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-family: inherit;
+}
+
+.hypothesis-text {
+    font-size: 0.75rem;
+    color: hsl(var(--foreground));
+    line-height: 1.45;
+    margin-bottom: 0.375rem;
+    font-family: inherit;
+    font-style: normal;
+}
+
+.math-model-box {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6875rem;
+    padding: 0.375rem 0.5rem;
+    background: hsl(var(--muted) / 0.5);
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.25rem;
+    color: hsl(var(--foreground));
+    margin: 0.5rem 0;
+}
+
+.variance-effects {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin: 0.5rem 0;
+    list-style: none;
+    padding: 0;
+}
+
+.variance-item {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.6875rem;
+    padding: 0.25rem 0;
+    border-bottom: 1px solid hsl(var(--border) / 0.5);
+}
+
+.variance-item:last-child {
+    border-bottom: none;
+}
+
+.variance-label {
+    font-weight: 600;
+    color: hsl(var(--foreground));
+}
+
+.variance-desc {
+    color: hsl(var(--muted-foreground));
+}
+
+/* Anti-hypothesis box */
+.anti-hypothesis-box {
+    background: hsl(var(--muted) / 0.15);
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.375rem;
+    padding: 0.625rem;
+    margin-top: 0.5rem;
+}
+
+.hypothesis-label {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: hsl(var(--muted-foreground));
+    margin: 0 0 0.25rem 0;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-family: inherit;
+}
+
+/**
+ * PDE4B Variance Slider
+ * Primary experimental control for manipulating genetic variance
+ */
+.slider-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.variance-slider {
+    width: 100%;
+    height: 2px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: hsl(var(--foreground));
+    border-radius: 0;
+    cursor: pointer;
+    outline: none;
+}
+
+.variance-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    background: hsl(var(--foreground));
+    border-radius: 0;
+    cursor: pointer;
+    border: none;
+    margin-top: -7px;
+    box-shadow: none;
+    transition: transform 0.15s ease;
+}
+
+.variance-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.05);
+}
+
+.variance-slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    background: hsl(var(--foreground));
+    border-radius: 0;
+    cursor: pointer;
+    border: none;
+    box-shadow: none;
+}
+
+.slider-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.625rem;
+    color: hsl(var(--muted-foreground));
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.variance-value {
+    font-weight: 600;
+    color: hsl(var(--primary));
+}
+
+.variance-presets {
+    display: flex;
+    gap: 0.25rem;
+    margin-top: 0.375rem;
+}
+
+.variance-preset {
+    flex: 1;
+    padding: 0.25rem 0.375rem;
+    font-size: 0.625rem;
+    font-weight: 500;
+    color: hsl(var(--muted-foreground));
+    background: hsl(var(--muted));
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.25rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.variance-preset:hover {
+    background: hsl(var(--accent));
+    color: hsl(var(--foreground));
+}
+
+.variance-preset.active {
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+    border-color: hsl(var(--primary));
+}
+
+/* Utility */
+.hidden {
+    display: none !important;
+}
+
+/* Job Status */
+.job-status {
+    margin-top: 0.5rem;
+    padding: 0.5rem;
+    background: hsl(var(--muted));
+    border-radius: 0.375rem;
+}
+
+.job-status.hidden {
+    display: none;
+}
+
+.job-status-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.job-status-icon {
+    font-size: 1rem;
+}
+
+.job-id {
+    display: block;
+    font-size: 0.625rem;
+    font-family: 'JetBrains Mono', monospace;
+    color: hsl(var(--muted-foreground));
+    margin-top: 0.25rem;
+    word-break: break-all;
+}
+
+/* Runs List */
+.runs-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    max-height: 150px;
+    overflow-y: auto;
+}
+
+.run-item {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 0.5rem;
+    background: hsl(var(--muted));
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.375rem;
+    cursor: pointer;
+    transition: background-color 0.15s;
+    width: 100%;
+    text-align: left;
+}
+
+.run-item:hover {
+    background: hsl(var(--accent));
+}
+
+.run-name {
+    font-size: 0.75rem;
+    font-weight: 500;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.run-meta {
+    font-size: 0.625rem;
+    color: hsl(var(--muted-foreground));
+}
+
+/* Agent Inspector Modal - FIXED: Reduced text sizes */
+.agent-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.agent-modal.hidden {
+    display: none;
+}
+
+.agent-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+}
+
+.agent-modal-content {
+    position: relative;
+    width: 94vw;
+    max-width: 440px;
+    max-height: 88vh;
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.75rem;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    transition: max-width 0.2s ease;
+}
+
+@media (min-width: 768px) {
+    .agent-modal-content {
+        max-width: 780px;
+        max-height: 90vh;
+    }
+    .agent-modal-body {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.25rem;
+        align-items: start;
+    }
+}
+
+@media (min-width: 1024px) {
+    .agent-modal-content {
+        max-width: 1140px;
+        max-height: 92vh;
+    }
+}
+
+.agent-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.875rem 1rem;
+    border-bottom: 1px solid hsl(var(--border));
+}
+
+.agent-modal-title {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.agent-modal-close {
+    width: 1.75rem;
+    height: 1.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    color: hsl(var(--muted-foreground));
+    background: transparent;
+    border: none;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    transition: background-color 0.15s, color 0.15s;
+}
+
+.agent-modal-close:hover {
+    background: hsl(var(--muted));
+    color: hsl(var(--foreground));
+}
+
+.agent-modal-body {
+    padding: 1rem;
+    overflow-y: auto;
+}
+
+/* Inspector Sections - FIXED: Reduced text sizes */
+.inspector-section {
+    margin-bottom: 1rem;
+}
+
+.inspector-section:last-child {
+    margin-bottom: 0;
+}
+
+.inspector-section-title {
+    font-size: 0.625rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: hsl(var(--muted-foreground));
+    margin: 0 0 0.5rem 0;
+}
+
+.inspector-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.375rem;
+}
+
+.inspector-item {
+    display: flex;
+    flex-direction: column;
+    padding: 0.375rem 0.5rem;
+    background: hsl(var(--muted) / 0.5);
+    border-radius: 0.375rem;
+}
+
+.inspector-label {
+    font-size: 0.5625rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: hsl(var(--muted-foreground));
+}
+
+.inspector-value {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: hsl(var(--foreground));
+}
+
+.inspector-value.mono {
+    font-family: 'JetBrains Mono', monospace;
+}
+
+/* Clickable relative parent links */
+.inspector-value.clickable {
+    color: hsl(var(--primary));
+    cursor: pointer;
+    transition: color 0.15s ease;
+}
+
+.inspector-value.clickable:hover {
+    color: hsl(var(--primary) / 0.8);
+    text-decoration: underline;
+}
+
+/* SIM-002: Relative terminology consistency */
+.relative-parent {
+    font-family: 'JetBrains Mono', monospace;
+}
+
+/* DOCAS Bars - FIXED: Reduced text sizes */
+.docas-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.docas-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+}
+
+.docas-label {
+    width: 0.875rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    font-family: 'JetBrains Mono', monospace;
+    color: hsl(var(--muted-foreground));
+}
+
+.docas-bar-container {
+    flex: 1;
+    height: 0.4375rem;
+    background: hsl(var(--muted));
+    border-radius: 0.25rem;
+    overflow: hidden;
+}
+
+.docas-bar {
+    height: 100%;
+    border-radius: 0.25rem;
+    transition: width 0.3s ease;
+}
+
+.docas-bar.dopamine { background: hsl(120, 70%, 50%); }
+.docas-bar.oxytocin { background: hsl(200, 70%, 50%); }
+.docas-bar.cortisol { background: hsl(40, 80%, 50%); }
+.docas-bar.adrenaline { background: hsl(0, 70%, 50%); }
+.docas-bar.serotonin { background: hsl(280, 60%, 50%); }
+
+.docas-value {
+    width: 2.25rem;
+    font-size: 0.5625rem;
+    font-family: 'JetBrains Mono', monospace;
+    color: hsl(var(--muted-foreground));
+    text-align: right;
+}
+
+/* Status indicators */
+.status-alive { color: hsl(var(--success)); }
+.status-dead { color: hsl(0, 84%, 60%); }
+.status-verified { color: hsl(var(--info)); }
+.status-unverified { color: hsl(var(--muted-foreground)); }
+.status-male { color: hsl(200, 80%, 55%); }
+.status-female { color: hsl(320, 70%, 55%); }
+
+/* Trust (τ) indicator - color coded by trust level */
+.tau-value {
+    font-weight: 600;
+}
+.tau-high { color: hsl(120, 70%, 45%); } /* τ > 1.2: High trust */
+.tau-medium { color: hsl(40, 80%, 50%); } /* τ 0.8-1.2: Medium trust */
+.tau-low { color: hsl(0, 70%, 50%); } /* τ < 0.8: Low trust */
+
+/* Inspector hint text */
+.inspector-hint {
+    margin-top: 0.5rem;
+    font-size: 0.625rem;
+    color: hsl(var(--muted-foreground));
+    font-style: italic;
+}
+
+/* DOCAS Legend (P1-5) */
+.docas-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.legend-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.legend-label {
+    font-size: 0.75rem;
+    color: hsl(var(--muted-foreground));
+}
+
+.legend-note {
+    font-size: 0.625rem;
+    color: hsl(var(--muted-foreground));
+    margin-bottom: 0.5rem;
+    font-style: italic;
+}
+
+/* DOCAS History Chart (3a) */
+.docas-history-container {
+    background: hsl(var(--muted) / 0.3);
+    border-radius: 0.375rem;
+    padding: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.docas-history-container canvas {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+.docas-chart-legend {
+    display: flex;
+    justify-content: center;
+    gap: 0.75rem;
+    margin-top: 0.5rem;
+    font-size: 0.625rem;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.docas-chart-legend .legend-item {
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    color: hsl(var(--background));
+    font-weight: 600;
+}
+
+.docas-chart-legend .legend-item.dopamine { background: hsl(320, 70%, 50%); }
+.docas-chart-legend .legend-item.oxytocin { background: hsl(280, 60%, 55%); }
+.docas-chart-legend .legend-item.cortisol { background: hsl(0, 70%, 50%); }
+.docas-chart-legend .legend-item.adrenaline { background: hsl(30, 90%, 50%); }
+.docas-chart-legend .legend-item.serotonin { background: hsl(200, 70%, 50%); }
+
+/* Spatial Context Grid (3b) */
+.spatial-grid-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.spatial-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2px;
+    width: 90px;
+    height: 90px;
+}
+
+.spatial-cell {
+    background: hsl(var(--muted) / 0.3);
+    border-radius: 0.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.625rem;
+    font-family: 'JetBrains Mono', monospace;
+    color: hsl(var(--muted-foreground));
+    transition: background-color 0.15s ease;
+}
+
+.spatial-cell.center {
+    background: hsl(var(--primary) / 0.3);
+    color: hsl(var(--primary));
+    font-size: 0.875rem;
+}
+
+.spatial-cell.occupied {
+    background: hsl(var(--warning) / 0.3);
+    color: hsl(var(--warning));
+}
+
+.spatial-cell.occupied::after {
+    content: '●';
+}
+
+.spatial-info {
+    font-size: 0.625rem;
+    color: hsl(var(--muted-foreground));
+}
+
+/**
+ * Agent Filters (SIM-002 Compliant)
+ * 
+ * These are client-side visualization filters that affect rendering only.
+ * They do not modify simulation state.
+ * 
+ * Per UI Refactor: Simplified to dropdown-based filters for better UX:
+ * - Dominant Trait: Single dropdown (All, D, O, C, A, S)
+ * - Status: Single dropdown (Alive Only, All Agents)
+ * - Relative Distance: Range slider (for Relative layer)
+ */
+
+.filter-group {
+    margin-bottom: 0.75rem;
+}
+
+.filter-group-label {
+    display: block;
+    font-size: 0.625rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: hsl(var(--muted-foreground));
+    margin-bottom: 0.375rem;
+}
+
+/* 
+ * SIM-002 Note: Filter checkboxes have been replaced with dropdown selects
+ * for simplified UX. The old checkbox styles are removed.
+ * See .preset-select for dropdown styling.
+ */
+
+/* Range slider for relative distance threshold */
+.filter-range {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* Range Slider - Canonical Calculator Style (Thin Line + Sharp Square Thumb) */
+.range-slider {
+    flex: 1;
+    height: 2px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: hsl(var(--foreground));
+    border-radius: 0;
+    cursor: pointer;
+    outline: none;
+    border: none;
+}
+
+.range-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    background: hsl(var(--foreground));
+    border-radius: 0;
+    border: none;
+    margin-top: -7px;
+    box-shadow: none;
+    cursor: pointer;
+}
+
+.range-slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    background: hsl(var(--foreground));
+    border-radius: 0;
+    cursor: pointer;
+    border: none;
+    box-shadow: none;
+}
+
+.range-slider::-webkit-slider-runnable-track {
+    height: 2px;
+    background: hsl(var(--foreground));
+    border-radius: 0;
+    border: none;
+}
+
+.range-slider::-moz-range-track {
+    height: 2px;
+    background: hsl(var(--foreground));
+    border-radius: 0;
+    border: none;
+}
+
+.range-slider:focus::-webkit-slider-thumb {
+    outline: 2px solid hsl(var(--foreground));
+    outline-offset: 2px;
+}
+
+/* Range Value Display - Consistent with Simulation Speed */
+.range-value {
+    font-size: 0.875rem;
+    font-weight: 600;
+    font-family: 'JetBrains Mono', monospace;
+    color: hsl(var(--success));
+    min-width: 3rem;
+    text-align: right;
+}
+
+.range-note {
+    font-size: 0.625rem;
+    color: hsl(var(--muted-foreground));
+}
+
+.filter-reset-btn {
+    width: 100%;
+    padding: 0.375rem 0.75rem;
+    margin-top: 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: hsl(var(--muted-foreground));
+    background: transparent;
+    border: 1px solid hsl(var(--border));
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.filter-reset-btn:hover {
+    color: hsl(var(--foreground));
+    border-color: hsl(var(--muted-foreground));
+}
+
+/* 
+ * SIM-002 Note: Energy range sliders and color intensity slider removed.
+ * These were visualization preferences that cluttered the UI.
+ * Energy visualization is now controlled via the Energy layer toggle only.
+ */
+
+/**
+ * Keyboard Shortcuts (Phase 4)
+ */
+.shortcuts-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+}
+
+.shortcut-item {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.6875rem;
+    color: hsl(var(--foreground));
+}
+
+.shortcut-item kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.5rem;
+    padding: 0.125rem 0.375rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.625rem;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+    background: hsl(var(--muted));
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.25rem;
+    box-shadow: 0 1px 0 hsl(var(--border));
+}
+
+.shortcut-item span {
+    color: hsl(var(--muted-foreground));
+}
+
+.shortcut-desc {
+    margin-left: auto;
+    color: hsl(var(--muted-foreground));
+}
+
+/**
+ * Experiment Search (Phase 4)
+ */
+#experiment-selector[size] {
+    height: auto;
+    max-height: 200px;
+}
+
+#experiment-selector option {
+    padding: 0.25rem 0.5rem;
+}
+
+#experiment-selector option:disabled {
+    color: hsl(var(--muted-foreground));
+    font-style: italic;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .simulator-main {
+        flex-direction: column;
+    }
+
+    .simulator-sidebar {
+        width: 100%;
+        height: auto;
+        max-height: 40vh;
+        border-right: none;
+        border-bottom: 1px solid hsl(var(--border));
+    }
+
+    .agent-modal-content {
+        width: 95%;
+        max-height: 90vh;
+    }
+}
+
+
+/* ============================================
+   3D Brain Visualization Styles
+   ============================================ */
+
+.brain-viz-container {
+    position: relative;
+    width: 100%;
+    height: 300px;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 0.5rem 0;
+}
+
+.brain-canvas {
+    width: 100%;
+    height: 100%;
+}
+
+.brain-canvas canvas {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.brain-loading {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: hsl(var(--muted-foreground));
+    font-size: 0.875rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.brain-loading::before {
+    content: '';
+    width: 16px;
+    height: 16px;
+    border: 2px solid hsl(var(--muted));
+    border-top-color: hsl(var(--primary));
+    border-radius: 50%;
+    animation: brain-spin 1s linear infinite;
+}
+
+@keyframes brain-spin {
+    to { transform: rotate(360deg); }
+}
+
+.brain-region-tooltip {
+    position: absolute;
+    background: rgba(0, 0, 0, 0.9);
+    color: white;
+    padding: 0.5rem 0.75rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    pointer-events: none;
+    z-index: 1000;
+    max-width: 200px;
+    border: 1px solid hsl(var(--border));
+}
+
+.brain-region-tooltip .region-name {
+    font-weight: 600;
+    color: hsl(var(--primary));
+    margin-bottom: 0.25rem;
+}
+
+.brain-region-tooltip .region-nm {
+    color: hsl(var(--muted-foreground));
+    font-size: 0.625rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* 
+ * Pixelated Loader Animation Styles
+ * Generated by jsx-transformer crate
+ */
+
+#loader-canvas {
+    display: block;
+    margin: 0 auto 1rem auto;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+}
+
+/* Updated overlay content to center the loader */
+.overlay-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 2rem;
+    min-height: 300px;
+}
+
+/* Overlay message styling */
+#overlay-message {
+    font-size: 0.875rem;
+    color: hsl(var(--muted-foreground));
+    margin-top: 0.5rem;
+}
+
+/* Animation for the overlay content fade in */
+@keyframes fadeInOverlay {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.overlay-content > * {
+    animation: fadeInOverlay 0.3s ease forwards;
+}
+
+/* Staggered animation delays for children */
+.overlay-content > *:nth-child(1) { animation-delay: 0.1s; }
+.overlay-content > *:nth-child(2) { animation-delay: 0.2s; }
+.overlay-content > *:nth-child(3) { animation-delay: 0.3s; }
+
+/* ============================================================================
+ * Issue 3 Fix: Scientific Info Icons and Tooltips
+ * Provides scientific documentation for all simulation attributes
+ * ============================================================================ */
+
+/* Info Icon Button - Circle with plain text 'i' */
+.info-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    margin-left: 8px;
+    font-size: 11px;
+    font-weight: 600;
+    color: hsl(var(--muted-foreground));
+    background: hsl(var(--muted));
+    border: 1px solid hsl(var(--border));
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+}
+
+.info-icon:hover {
+    color: hsl(var(--primary));
+    background: hsl(var(--primary) / 0.1);
+    border-color: hsl(var(--primary));
+}
+
+.info-icon::before {
+    content: 'i';
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-style: normal;
+    font-weight: 600;
+}
+
+/* Layer toggle with info icon layout */
+.layer-toggle {
+    position: relative;
+}
+
+.layer-toggle .layer-label {
+    flex: 1;
+}
+
+/* Scientific Tooltip - FIXED: Reduced text sizes */
+.scientific-tooltip {
+    position: fixed;
+    z-index: 10000;
+    width: 300px;
+    max-width: calc(100vw - 40px);
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.625rem;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-10px);
+    transition: all 0.2s ease;
+    pointer-events: none;
+}
+
+.scientific-tooltip.visible {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+.tooltip-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.625rem 0.875rem;
+    border-bottom: 1px solid hsl(var(--border));
+}
+
+.tooltip-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+}
+
+.tooltip-close {
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.125rem;
+    color: hsl(var(--muted-foreground));
+    background: transparent;
+    border: none;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.tooltip-close:hover {
+    color: hsl(var(--foreground));
+    background: hsl(var(--muted));
+}
+
+.tooltip-layer {
+    padding: 0.3125rem 0.875rem;
+    font-size: 0.625rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: hsl(var(--success));
+    background: hsl(var(--success) / 0.1);
+    border-bottom: 1px solid hsl(var(--border));
+}
+
+/* Tooltip content - FIXED: Reduced text sizes */
+.tooltip-description {
+    padding: 0.75rem 0.875rem;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    color: hsl(var(--foreground));
+    border-bottom: 1px solid hsl(var(--border));
+}
+
+.tooltip-science {
+    padding: 0.75rem 0.875rem;
+    font-size: 0.6875rem;
+    line-height: 1.5;
+    color: hsl(var(--muted-foreground));
+    font-style: italic;
+    border-bottom: 1px solid hsl(var(--border));
+}
+
+.tooltip-citation {
+    padding: 0.5rem 0.875rem;
+    font-size: 0.625rem;
+    color: hsl(var(--muted-foreground) / 0.8);
+    font-style: italic;
+    border-bottom: 1px solid hsl(var(--border));
+}
+
+.tooltip-parameters {
+    padding: 0.75rem 0.875rem;
+    font-size: 0.6875rem;
+    color: hsl(var(--foreground));
+}
+
+.tooltip-parameters strong {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-weight: 600;
+}
+
+.tooltip-parameters ul {
+    margin: 0;
+    padding-left: 1rem;
+}
+
+.tooltip-parameters li {
+    margin-bottom: 0.1875rem;
+    color: hsl(var(--muted-foreground));
+}
+
+.tooltip-parameters li:last-child {
+    margin-bottom: 0;
+}
+
+/* ============================================================================
+   Results Download Panel
+   ============================================================================ */
+
+.results-content {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.validation-status {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem;
+    border-radius: 0.375rem;
+    background: hsl(var(--muted));
+}
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+}
+
+.status-badge.pending {
+    background: hsl(45, 90%, 50%, 0.2);
+    color: hsl(45, 90%, 50%);
+}
+
+.status-badge.pending::before {
+    content: '⏳';
+}
+
+.status-badge.passed {
+    background: hsl(142, 76%, 36%, 0.2);
+    color: hsl(142, 76%, 50%);
+}
+
+.status-badge.passed::before {
+    content: '✓';
+}
+
+.status-badge.failed {
+    background: hsl(0, 84%, 60%, 0.2);
+    color: hsl(0, 84%, 60%);
+}
+
+.status-badge.failed::before {
+    content: '✗';
+}
+
+.download-links {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.download-link {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.375rem;
+    background: hsl(var(--muted));
+    color: hsl(var(--foreground));
+    text-decoration: none;
+    font-size: 0.875rem;
+    transition: background 0.15s ease;
+}
+
+.download-link:hover {
+    background: hsl(var(--border));
+}
+
+.download-link.disabled {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.download-icon {
+    font-size: 1rem;
+}
+
+.download-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+}
+
+.results-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid hsl(var(--border));
+}
+
+.summary-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.75rem;
+}
+
+.summary-label {
+    color: hsl(var(--muted-foreground));
+}
+
+.summary-value {
+    font-weight: 500;
+}
+
+.summary-value.mono {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6875rem;
+}
+
+/* ============================================================================
+   GAME OVER OVERLAY (Retro Pixelated Style)
+   ============================================================================ */
+
+.game-over-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.9);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    transition: opacity 0.3s ease;
+}
+
+.game-over-overlay.hidden {
+    display: none;
+}
+
+#game-over-canvas {
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+    margin-bottom: 2rem;
+}
+
+.restart-button {
+    background: linear-gradient(135deg, #333 0%, #555 100%);
+    border: 2px solid #888;
+    color: #fff;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.875rem;
+    font-weight: 600;
+    padding: 0.75rem 1.5rem;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+}
+
+.restart-button:hover {
+    background: linear-gradient(135deg, #444 0%, #666 100%);
+    border-color: #aaa;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+}
+
+.restart-button:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* ============================================================================
+   SIMULATION STATUS INDICATORS
+   ============================================================================ */
+
+.status-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.status-indicator.running {
+    background: hsl(142 76% 36% / 0.2);
+    color: hsl(142 76% 50%);
+}
+
+.status-indicator.paused {
+    background: hsl(45 90% 50% / 0.2);
+    color: hsl(45 90% 60%);
+}
+
+.status-indicator.stopped {
+    background: hsl(0 70% 50% / 0.2);
+    color: hsl(0 70% 60%);
+}
+
+.status-indicator.completed {
+    background: hsl(280 70% 50% / 0.2);
+    color: hsl(280 70% 60%);
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+}
+
+.status-indicator.running .status-dot {
+    background: hsl(142 76% 50%);
+}
+
+.status-indicator.paused .status-dot {
+    background: hsl(45 90% 60%);
+    animation: none;
+}
+
+.status-indicator.stopped .status-dot,
+.status-indicator.completed .status-dot {
+    background: hsl(0 70% 60%);
+    animation: none;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* ============================================================================
+   GENOME SEGMENTED BAR (Single horizontal bar with colored segments)
+   ============================================================================ */
+
+.genome-segmented-bar-container {
+    padding: 0.5rem 0;
+}
+
+.genome-segmented-bar {
+    display: flex;
+    width: 100%;
+    height: 12px;
+    border-radius: 4px;
+    overflow: hidden;
+    background: hsl(var(--muted));
+    margin-bottom: 0.5rem;
+}
+
+.genome-segment {
+    height: 100%;
+    transition: width 0.3s ease;
+}
+
+.genome-segment.dopamine { background: hsl(120, 70%, 50%); }
+.genome-segment.oxytocin { background: hsl(200, 70%, 50%); }
+.genome-segment.cortisol { background: hsl(40, 80%, 50%); }
+.genome-segment.adrenaline { background: hsl(0, 70%, 50%); }
+.genome-segment.serotonin { background: hsl(280, 60%, 50%); }
+
+.genome-legend {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.genome-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+}
+
+.genome-legend-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+}
+
+.genome-legend-color.dopamine { background: hsl(120, 70%, 50%); }
+.genome-legend-color.oxytocin { background: hsl(200, 70%, 50%); }
+.genome-legend-color.cortisol { background: hsl(40, 80%, 50%); }
+.genome-legend-color.adrenaline { background: hsl(0, 70%, 50%); }
+.genome-legend-color.serotonin { background: hsl(280, 60%, 50%); }
+
+/* ============================================================================
+   IMPORT/EXPORT CONTROLS
+   ============================================================================ */
+
+/* Import Section - Always visible at top */
+.import-section {
+    margin-bottom: 1rem;
+}
+
+.import-button-wrapper {
+    display: flex;
+    justify-content: flex-start;
+}
+
+.import-button-wrapper .control-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: hsl(var(--foreground));
+    background: hsl(var(--muted));
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.import-button-wrapper .control-btn:hover {
+    background: hsl(var(--accent));
+    border-color: hsl(var(--muted-foreground));
+}
+
+.import-button-wrapper .control-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* Export Section - At bottom, initially hidden */
+.export-section {
+    margin-top: auto;
+    padding-top: 1rem;
+    border-top: 1px solid hsl(var(--border));
+}
+
+.export-section.hidden {
+    display: none !important;
+}
+
+.export-btn-full {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: hsl(var(--foreground));
+    background: hsl(var(--muted));
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.export-btn-full:hover {
+    background: hsl(var(--accent));
+    border-color: hsl(var(--muted-foreground));
+}
+
+.export-btn-full svg {
+    width: 18px;
+    height: 18px;
+}
+
+/* ============================================================================
+   NEUROMODULATOR LABEL FONT SIZE INCREASE
+   ============================================================================ */
+
+/* Increase font size in brain visualization labels */
+.brain-region-tooltip {
+    font-size: 1rem !important;
+    padding: 0.75rem 1rem !important;
+}
+
+.brain-region-tooltip .region-name {
+    font-size: 1.125rem !important;
+    font-weight: 600;
+}
+
+.brain-region-tooltip .region-neurotransmitter {
+    font-size: 0.9375rem !important;
+}
+
+/* Increase DOCAS label sizes in inspector */
+.docas-label {
+    font-size: 1rem !important;
+    font-weight: 600;
+    min-width: 24px;
+}
+
+.docas-value {
+    font-size: 0.9375rem !important;
+}
+
+/* Brain canvas label text - Three.js sprite labels */
+.brain-canvas .label-sprite {
+    font-size: 16px !important;
+}
+
+/* ============================================================================
+   EVENT LOG CHATBOX (Retro Terminal Style)
+   ============================================================================ */
+
+/* Activity Log Full-Screen Mode */
+.activity-log-fullscreen {
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    width: 100vw !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+    z-index: 9999;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    border: none !important;
+    transition: all 0.3s ease;
+}
+
+.activity-log-fullscreen .activity-log-content {
+    max-height: calc(100vh - 50px) !important;
+    padding: 1rem 1.25rem;
+}
+
+.activity-log-fullscreen .activity-log-entry {
+    font-size: 0.9375rem;
+    padding: 0.375rem 0.75rem;
+    margin-bottom: 0.25rem;
+}
+
+.activity-log-fullscreen .activity-log-timestamp {
+    font-size: 0.8125rem;
+}
+
+.activity-log-fullscreen .activity-log-agent {
+    font-size: 0.875rem;
+}
+
+.activity-log-fullscreen .activity-log-action {
+    font-size: 0.9375rem;
+}
+
+.activity-log-fullscreen .activity-log-welcome {
+    font-size: 0.9375rem;
+    padding: 1rem 0;
+}
+
+.activity-log-header-right {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.activity-log-fullscreen-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    padding: 0;
+    background: transparent;
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.375rem;
+    cursor: pointer;
+    color: hsl(var(--muted-foreground));
+    transition: all 0.15s ease;
+}
+
+.activity-log-fullscreen-btn:hover {
+    background: hsl(var(--muted));
+    color: hsl(var(--foreground));
+    border-color: hsl(var(--muted-foreground));
+}
+
+.activity-log-fullscreen-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+.activity-log-fullscreen-btn .fullscreen-icon-collapse {
+    display: none;
+}
+
+.activity-log-fullscreen-btn.active .fullscreen-icon-expand {
+    display: none;
+}
+
+.activity-log-fullscreen-btn.active .fullscreen-icon-collapse {
+    display: block;
+}
+
+/* Ensure fullscreen activity log is scrollable and above all UI */
+.activity-log-fullscreen #activity-log-scroll-indicator {
+    bottom: 1rem;
+    right: 1.5rem;
+    font-size: 0.875rem;
+    padding: 0.5rem 1rem;
+}
+
+.activity-log-panel {
+    /* Positioned in sidebar flow, not absolute */
+    width: 100%;
+    height: 200px; /* Fixed height - won't expand */
+    max-height: 200px; /* Enforce max height */
+    background: rgba(10, 10, 15, 0.95);
+    border: 2px solid #333;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    font-family: 'JetBrains Mono', monospace;
+    box-shadow: 0 0 20px rgba(0, 255, 100, 0.1);
+    margin-top: 1rem;
+    overflow: hidden; /* Critical: prevent expansion */
+    flex-shrink: 0; /* Don't grow in flex container */
+}
+
+/* Hidden state for event log panel */
+#activity-log-panel.hidden {
+    display: none !important;
+}
+
+.activity-log-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    background: linear-gradient(135deg, #1a1a2e 0%, #0f0f1a 100%);
+    border-bottom: 2px solid #333;
+    border-radius: 6px 6px 0 0;
+}
+
+.activity-log-title {
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: #00ff64;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    text-shadow: 0 0 10px rgba(0, 255, 100, 0.5);
+}
+
+.activity-log-status {
+    font-size: 0.625rem;
+    color: #00ff64;
+    animation: pulse 2s infinite;
+}
+
+.activity-log-content {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 0.5rem 0.75rem;
+    max-height: calc(200px - 50px); /* Panel height minus header */
+}
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    scrollbar-width: thin;
+    scrollbar-color: #333 #0a0a0f;
+}
+
+.activity-log-content::-webkit-scrollbar {
+    width: 6px;
+}
+
+.activity-log-content::-webkit-scrollbar-track {
+    background: #0a0a0f;
+}
+
+.activity-log-content::-webkit-scrollbar-thumb {
+    background: #333;
+    border-radius: 3px;
+}
+
+.activity-log-welcome {
+    font-size: 0.75rem;
+    color: #666;
+    text-align: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #222;
+}
+
+.activity-log-entry {
+    font-size: 0.75rem;
+    line-height: 1.5;
+    padding: 0.25rem 0.5rem;
+    border-radius: 3px;
+    border-left: 3px solid transparent;
+    animation: fadeIn 0.2s ease;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateX(-10px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+.activity-log-entry.info {
+    color: #aaa;
+    border-left-color: #555;
+    background: rgba(85, 85, 85, 0.1);
+}
+
+.activity-log-entry.success {
+    color: #00ff64;
+    border-left-color: #00ff64;
+    background: rgba(0, 255, 100, 0.1);
+}
+
+.activity-log-entry.warning {
+    color: #ffaa00;
+    border-left-color: #ffaa00;
+    background: rgba(255, 170, 0, 0.1);
+}
+
+.activity-log-entry.danger {
+    color: #ff4444;
+    border-left-color: #ff4444;
+    background: rgba(255, 68, 68, 0.1);
+}
+
+.activity-log-entry.event {
+    color: #4488ff;
+    border-left-color: #4488ff;
+    background: rgba(68, 136, 255, 0.1);
+}
+
+.activity-log-timestamp {
+    color: #666;
+    font-size: 0.625rem;
+    flex-shrink: 0;
+}
+
+.activity-log-agent {
+    color: #ffaa00;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.activity-log-action {
+    color: #ccc;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+/* Scroll to bottom indicator - shown when user scrolls up */
+.activity-log-scroll-indicator {
+    position: absolute;
+    bottom: 0.5rem;
+    right: 1rem;
+    background: rgba(0, 255, 100, 0.9);
+    color: #000;
+    font-size: 0.625rem;
+    font-weight: 600;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+    box-shadow: 0 2px 8px rgba(0, 255, 100, 0.3);
+    z-index: 10;
+}
+
+.activity-log-scroll-indicator.visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.activity-log-scroll-indicator:hover {
+    background: #00ff64;
+}
+
+/* ============================================================================
+   PIXELATED PLAY BUTTON (Retro Style)
+   ============================================================================ */
+
+.pixelated-play-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    margin: 1rem 0;
+    padding: 0.75rem 2rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #ffffff;
+    background: linear-gradient(135deg, #1a1a2e 0%, #0f0f1a 100%);
+    border: 3px solid #ffffff;
+    border-radius: 4px;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.1), inset 0 0 20px rgba(255, 255, 255, 0.05);
+    transition: all 0.2s ease;
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+}
+
+.pixelated-play-btn:hover {
+    color: #00ff64;
+    background: linear-gradient(135deg, #1a1a2e 0%, #0f0f1a 100%);
+    border-color: #00ff64;
+    box-shadow: 0 0 30px rgba(0, 255, 100, 0.5), inset 0 0 10px rgba(0, 255, 100, 0.1);
+    transform: translateY(-2px);
+}
+
+.pixelated-play-btn:active {
+    color: #00ff64;
+    border-color: #00ff64;
+    transform: translateY(0);
+    box-shadow: 0 0 10px rgba(0, 255, 100, 0.3);
+}
+
+/* Optogenetic & Cloaking Panels */
+.opto-wavelength-group { display: flex; flex-direction: column; gap: 0.375rem; }
+.opto-radio-label { display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; cursor: pointer; }
+.opto-carriers-row { display: flex; gap: 0.5rem; justify-content: space-between; }
+.opto-carrier-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 0.25rem; }
+.opto-carrier-badge { font-weight: 700; font-size: 0.75rem; }
+.cloaking-gauge-box { margin-top: 0.75rem; padding: 0.625rem; background: hsl(var(--muted) / 0.4); border: 1px solid hsl(var(--border)); }
+.cloaking-gauge-row { display: flex; justify-content: space-between; font-size: 0.6875rem; margin-bottom: 0.25rem; }
+.cloaking-gauge-val-alert { font-weight: 700; color: hsl(var(--destructive)); font-family: 'JetBrains Mono', monospace; }
+.cloaking-gauge-val { font-weight: 600; font-family: 'JetBrains Mono', monospace; }
+
+
+/* ============================================================================
+   VERSION 4.0 REAL-TIME TELEMETRY & ANALYTICS DASHBOARD
+   ============================================================================ */
+
+.v4-telemetry-dashboard {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(10, 10, 16, 0.94);
+    border-top: 2px solid hsl(var(--border));
+    backdrop-filter: blur(8px);
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    padding: 0.5rem 1rem 0.75rem 1rem;
+    font-family: 'JetBrains Mono', monospace;
+    transition: transform 0.25s ease;
+}
+
+.v4-telemetry-dashboard.collapsed {
+    transform: translateY(calc(100% - 32px));
+}
+
+.v4-telemetry-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+    cursor: pointer;
+}
+
+.v4-telemetry-title {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    color: hsl(var(--foreground));
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.v4-telemetry-btn {
+    background: transparent;
+    border: 1px solid hsl(var(--border));
+    color: hsl(var(--muted-foreground));
+    border-radius: 0;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.v4-telemetry-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.75rem;
+}
+
+.v4-chart-card {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: 0;
+    padding: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+}
+
+.v4-chart-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.625rem;
+    font-weight: 600;
+    color: hsl(var(--muted-foreground));
+    text-transform: uppercase;
+}
+
+.v4-badge {
+    font-size: 0.5625rem;
+    font-weight: 700;
+    padding: 0.125rem 0.375rem;
+    border: 1px solid hsl(var(--border));
+    border-radius: 0;
+    color: #ef4444;
+}
+
+.v4-chart-card canvas {
+    width: 100%;
+    height: 110px;
+    background: #000000;
+    border: 1px solid hsl(var(--border) / 0.5);
+    display: block;
+}
+
+.pixelated-play-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    border-color: #555;
+    color: #555;
+    background: #1a1a2e;
+    box-shadow: none;
+}
+
+/* ============================================================================
+   IMPORT/EXPORT PANEL (Moved to Sidebar)
+   ============================================================================ */
+
+/* Old absolute positioning removed - now in sidebar */
+.simulator-controls {
+    display: none;
+}
+
+/* Import/Export Section in Sidebar */
+.import-export-section {
+    margin-bottom: 1rem;
+}
+
+.import-export-buttons {
+    display: flex;
+    flex-direction: row;
+    gap: 0.5rem;
+}
+
+.control-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    flex: 1;
+    padding: 0.5rem 0.75rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+    background: hsl(var(--muted));
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.375rem;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: all 0.15s ease;
+}
+
+.control-btn:hover {
+    color: hsl(var(--primary));
+    border-color: hsl(var(--primary));
+    background: hsl(var(--primary) / 0.1);
+}
+
+.control-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* Hide file input */
+input[type="file"].hidden-input {
+    display: none;
+}
+
+
+/* ============================================
+   CLICS-3 Visualization Styles
+   ============================================ */
+
+.clics-canvas-container {
+    position: relative;
+    width: 100%;
+    height: 250px;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.clics-canvas {
+    width: 100%;
+    height: 100%;
+}
+
+.clics-canvas svg {
+    width: 100%;
+    height: 100%;
+}
+
+.clics-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #888;
+    font-size: 14px;
+    font-family: 'Inter', sans-serif;
+}
+
+.clics-legend {
+    font-family: 'Inter', sans-serif;
+}
+
+.clics-legend circle {
+    stroke: rgba(255, 255, 255, 0.3);
+    stroke-width: 1px;
+}
+
+.clics-stats {
+    font-family: 'Inter', sans-serif;
+}
+
+/* CLICS graph elements */
+.clics-canvas .nodes circle {
+    stroke: #fff;
+    stroke-width: 1.5px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.clics-canvas .nodes circle:hover {
+    stroke-width: 3px;
+    filter: brightness(1.2);
+}
+
+.clics-canvas .links line {
+    transition: stroke-opacity 0.2s ease;
+}
+
+.clics-canvas .links line:hover {
+    stroke-opacity: 1 !important;
+}
+
+.clics-canvas .labels text {
+    font-family: 'Inter', sans-serif;
+    pointer-events: none;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+
+/* Brain visualization activity indicator */
+.brain-activity-indicator {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    background: rgba(0, 0, 0, 0.6);
+    border-radius: 4px;
+    font-size: 11px;
+    color: #FFD700;
+}
+
+.brain-activity-indicator::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    background: #FFD700;
+    border-radius: 50%;
+    animation: activity-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes activity-pulse {
+    0%, 100% { opacity: 0.4; transform: scale(0.8); }
+    50% { opacity: 1; transform: scale(1.2); }
+}
+
+/* ============================================================================
+   SIMULATION CONTROLS (Pause/Resume/End)
+   ============================================================================ */
+
+/* Simulation Controls Section */
+#simulation-controls-section {
+    margin-bottom: 1rem;
+}
+
+#simulation-controls-section.hidden {
+    display: none !important;
+}
+
+/* Controls container - flex layout for buttons */
+.simulation-controls {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+/* Individual control buttons */
+.simulation-controls .control-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    padding: 0.625rem 0.5rem;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border: 1px solid;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.simulation-controls .control-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* Pause Button - Primary color */
+.simulation-controls .pause-btn {
+    color: hsl(var(--primary));
+    background: hsl(var(--primary) / 0.1);
+    border-color: hsl(var(--primary));
+}
+
+.simulation-controls .pause-btn:hover {
+    color: hsl(var(--primary-foreground));
+    background: hsl(var(--primary));
+}
+
+.simulation-controls .pause-btn:active {
+    transform: translateY(1px);
+}
+
+/* Resume Button - Green/Success color */
+.simulation-controls .resume-btn {
+    color: hsl(var(--success));
+    background: hsl(var(--success) / 0.1);
+    border-color: hsl(var(--success));
+}
+
+.simulation-controls .resume-btn:hover {
+    color: hsl(var(--success-foreground));
+    background: hsl(var(--success));
+}
+
+.simulation-controls .resume-btn:active {
+    transform: translateY(1px);
+}
+
+/* End Button - Destructive/Red color */
+.simulation-controls .end-btn {
+    color: hsl(0 84% 60%);
+    background: hsl(0 84% 60% / 0.1);
+    border-color: hsl(0 84% 60%);
+}
+
+.simulation-controls .end-btn:hover {
+    color: white;
+    background: hsl(0 84% 60%);
+}
+
+.simulation-controls .end-btn:active {
+    transform: translateY(1px);
+}
+
+/* Hidden state for individual buttons */
+.simulation-controls .control-btn.hidden {
+    display: none !important;
+}
+
+/* Simulation Status Indicator */
+.simulation-status {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    background: hsl(var(--muted) / 0.5);
+    border-radius: 0.375rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.simulation-status .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+.simulation-status .status-text {
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* Status states */
+.simulation-status.running {
+    color: hsl(142 76% 50%);
+}
+
+.simulation-status.running .status-dot {
+    background: hsl(142 76% 50%);
+}
+
+.simulation-status.paused {
+    color: hsl(45 90% 60%);
+}
+
+.simulation-status.paused .status-dot {
+    background: hsl(45 90% 60%);
+    animation: none;
+}
+
+.simulation-status.stopped {
+    color: hsl(0 70% 60%);
+}
+
+.simulation-status.stopped .status-dot {
+    background: hsl(0 70% 60%);
+    animation: none;
+}
+
+/* Disabled state for controls */
+.simulation-controls.disabled .control-btn {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+}

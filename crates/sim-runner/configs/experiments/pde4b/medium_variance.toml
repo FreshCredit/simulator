@@ -1,0 +1,40 @@
+# Medium Variance: Natural variation (matches empirical h² ≈ 0.28)
+# pde4b_factor ∈ [0.3, 0.7], σ = 0.10
+# This is the "Goldilocks zone" for optimal societal function
+
+[experiment]
+name = "pde4b_medium_variance"
+description = "Medium PDE4B variance (σ = 0.10) - Goldilocks zone"
+replications = 30
+random_seed = 42
+
+[genome]
+pde4b_variance_condition = "medium"
+pde4b_range = [0.3, 0.7]
+pde4b_std_dev = 0.10
+heritability_h2 = 0.28
+
+# Learning rate range: λ ∈ [0.175, 0.325]
+learning_rate_range = [0.175, 0.325]
+
+[sweep]
+enabled = true
+parameter = "pde4b_factor"
+range = [0.3, 0.7]
+steps = 9
+
+[metrics]
+track_trust_variance = true
+track_trust_inequality_gini = true
+track_cooperation_rate = true
+track_learning_rate_distribution = true
+track_emotional_states = true
+track_criticality = true
+track_group_formation = true
+track_economic_gini = true
+track_mortality_rates = true
+
+[output]
+save_trajectories = true
+save_genome_snapshots = true
+snapshot_interval_ticks = 50

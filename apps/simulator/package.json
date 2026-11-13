@@ -1,0 +1,28 @@
+{
+  "name": "simulator-ui",
+  "version": "1.0.0",
+  "description": "FreshCredit Agent Society Simulator - Visualization UI",
+  "type": "module",
+  "scripts": {
+    "lint": "eslint static/js/**/*.js",
+    "lint:fix": "eslint static/js/**/*.js --fix",
+    "format": "prettier --write static/js/**/*.js",
+    "format:check": "prettier --check static/js/**/*.js",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:ui": "vitest --ui"
+  },
+  "keywords": ["simulator", "visualization", "agent-based"],
+  "author": "FreshCredit",
+  "license": "ISC",
+  "devDependencies": {
+    "@vitest/coverage-v8": "^1.6.0",
+    "@vitest/ui": "^1.6.0",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "jsdom": "^24.1.0",
+    "prettier": "^3.3.0",
+    "vitest": "^1.6.0"
+  }
+}

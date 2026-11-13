@@ -1,0 +1,50 @@
+[package]
+name = "sim-runner"
+version.workspace = true
+edition.workspace = true
+description = "Batch runner for Agent Society Simulator: config parsing, sweeps, statistics"
+license.workspace = true
+
+# SIM-001: Only depends on sim-* crates, NOT product crates (freshcredit-*)
+
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+[dependencies]
+# Simulation crates (allowed per SIM-001)
+sim-core = { path = "../sim-core", version = "0.1.0" }
+sim-artifacts = { path = "../sim-artifacts", version = "0.1.0" }
+sim-report = { path = "../sim-report", version = "0.1.0" }
+
+# Serialization
+serde = { workspace = true }
+serde_json = "1.0"
+toml = "1.0"
+
+# CLI
+clap = { workspace = true }
+
+# Utilities
+rand = { version = "0.8", features = ["std_rng"] }
+chrono = { workspace = true }
+rayon = "1.10"
+thiserror = { workspace = true }
+
+# Visualization
+plotters = "0.3"
+
+[dev-dependencies]
+tempfile = "3.0"
+approx = "0.5"
+
+[[bin]]
+name = "sim-runner"
+path = "src/main.rs"
+
+
+[lints]
+workspace = true
+
+[package.metadata.cargo-udeps.ignore]
+normal = ["workspace-hack"]

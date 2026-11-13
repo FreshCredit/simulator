@@ -1,0 +1,40 @@
+# High Variance: High diversity, potential coordination challenges
+# pde4b_factor ∈ [0.2, 0.8], σ = 0.15
+
+[experiment]
+name = "pde4b_high_variance"
+description = "High PDE4B variance (σ = 0.15)"
+replications = 30
+random_seed = 42
+
+[genome]
+pde4b_variance_condition = "high"
+pde4b_range = [0.2, 0.8]
+pde4b_std_dev = 0.15
+heritability_h2 = 0.28
+
+# Learning rate range: λ ∈ [0.145, 0.355]
+learning_rate_range = [0.145, 0.355]
+
+[sweep]
+enabled = true
+parameter = "pde4b_factor"
+range = [0.2, 0.8]
+steps = 13
+
+[metrics]
+track_trust_variance = true
+track_trust_inequality_gini = true
+track_cooperation_rate = true
+track_learning_rate_distribution = true
+track_emotional_states = true
+track_criticality = true
+track_group_formation = true
+track_economic_gini = true
+track_mortality_rates = true
+track_isolation_levels = true
+
+[output]
+save_trajectories = true
+save_genome_snapshots = true
+snapshot_interval_ticks = 50

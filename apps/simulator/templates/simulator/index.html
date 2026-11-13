@@ -1,0 +1,1454 @@
+{% extends "simulator/base.html" %}
+
+{% block title %}Agent Society Simulator | FreshCredit{% endblock %}
+
+{% block head %}
+    <!-- Simulator CSS -->
+    <link rel="stylesheet" href="/static/css/simulator.css?v=4.0.1">
+    <style>
+        /* Embedded mode: hide standalone header/logo when served inside the FreshCredit app iframe */
+        body.sim-embedded .simulator-header { display: none; }
+    </style>
+{% endblock %}
+
+{% block sim_url %}{{ sim_service_url }}{% endblock %}
+
+{% block content %}
+    <!-- 
+        SIM-002: UI reads artifacts only - no sim-core imports
+        This UI is a visualization layer only. All simulation logic runs in sim-core
+        and is accessed via HTTP API through sim-service.
+    -->
+    
+    <!-- Header -->
+    <header class="simulator-header">
+        <div class="header-brand">
+            <span class="freshcredit-logo">FreshCredit</span>
+            <span class="header-divider">|</span>
+            <h1 class="header-title">Agent Society Simulator</h1>
+        </div>
+        <div class="header-actions">
+            <span id="connection-status" class="connection-indicator connecting">
+                <span class="status-dot"></span>
+                <span class="status-text">Connecting...</span>
+            </span>
+            <a href="/" class="login-link">Login to App</a>
+        </div>
+    </header>
+
+    <!-- Main Layout -->
+    <main class="simulator-main">
+        <!-- Left Sidebar: Controls -->
+        <aside class="simulator-sidebar collapsed" id="sim-sidebar">
+            <div class="flex items-center justify-between pb-2 mb-3 border-b border-border">
+                <span class="text-xs font-semibold tracking-wider uppercase text-muted-foreground">Configuration</span>
+                <button type="button" id="sim-sidebar-toggle-btn" class="sim-sidebar-toggle-btn" title="Collapse Configuration Panel">
+                    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="15 18 9 12 15 6"></polyline>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Import Controls -->
+            <section class="control-section import-section">
+                <div class="import-button-wrapper">
+                    <button id="import-btn" class="control-btn" title="Import simulation state">
+                        <svg aria-hidden="true" width="16" height="16" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="17 8 12 3 7 8"></polyline>
+                            <line x1="12" y1="3" x2="12" y2="15"></line>
+                        </svg>
+                        Import
+                    </button>
+                    <input type="file" id="import-file-input" class="hidden-input" accept=".json">
+                </div>
+            </section>
+
+            <!-- Experiment Selector & Hypothesis Info -->
+            <section class="control-section">
+                <div class="flex items-center justify-between mb-1.5">
+                    <h2 class="control-section-title m-0">Experiment</h2>
+                    <button type="button" id="hypothesis-info-btn" class="hypothesis-info-btn" title="Toggle Research Hypothesis & Mathematical Formulation">
+                        <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="16" x2="12" y2="12"></line>
+                            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                        </svg>
+                    </button>
+                </div>
+                <div class="form-group mb-2">
+                    <select id="experiment-selector" class="preset-select">
+                        <option value="" selected>-- Select an experiment --</option>
+                        <option value="custom">Custom Configuration</option>
+                        <optgroup label="v4.0 Optogenetics & Visual Cloaking (Sim O & D Series)">
+                            <option value="sim-o1">DOCAS v4.0: Sim O1 Dopaminergic Trust Lesion (ArchT 566nm)</option>
+                            <option value="sim-o2">DOCAS v4.0: Sim O2 Optogenetic Cortisol Vulnerability (ChR2 470nm)</option>
+                            <option value="sim-o3">TFP v4.0: Sim O3 Kuramoto O/S Mutant Fragmentation</option>
+                            <option value="sim-d16">DOCAS v4.0: Sim D16 Dual-Branch Visual Cloaking (38.9x Gradient)</option>
+                            <option value="sim-d17">DOCAS v4.0: Sim D17 Atmospheric Gating & Weather-Shield</option>
+                            <option value="sim-d18">DOCAS v4.0: Sim D18 Baylor Unconscious Narrative Gating (M in {0,1})</option>
+                        </optgroup>
+
+                        <optgroup label="Empirical Research Artifacts (Sim M, K, C, S, DMN, CRIT, B, L, X, META)">
+                            <option value="sim-m-series">Sim M: TDF 5D Music Vector & Oxytocin (PASS: 4/4)</option>
+                            <option value="sim-k-series">Sim K: Genealogy Kingman Coalescent & Pedigrees</option>
+                            <option value="sim-c-series">Sim C: Choice Architecture & Thaler Loss Aversion</option>
+                            <option value="sim-s-series">Sim S: Semantic Drift & Cross-Language Colexification</option>
+                            <option value="sim-dmn">Sim DMN: Counterfactual K-Rollout Planning Horizon</option>
+                            <option value="sim-crit">Sim CRIT: Self-Organized Criticality (σ ≈ 1.0)</option>
+                            <option value="sim-b-series">Sim B: Basal Cognition & Morphospace Patterning</option>
+                            <option value="sim-l-series">Sim L: Bioelectric Voltage & Gap Junction Dynamics</option>
+                            <option value="sim-x-series">Sim X: Cross-Substrate Cognitive Invariants</option>
+                            <option value="sim-meta">Sim META: Meta-Simulation Invariant Extraction</option>
+                            <option value="sim-a1">Sim A1: Adversarial LLM / DMN Deception Detection</option>
+                            <option value="sim-b1">Sim B1: Tribe Bayes & In-Group Out-Group Trust</option>
+                            <option value="sim-s1">Sim S1: Striatal Microcircuit Dopaminergic Plasticity</option>
+                            <option value="sim-p9">Sim P9: Dynamic Kuramoto Phase Coupling & Leakage</option>
+                            <option value="sim-d19">Sim D19: Perky Reality-Monitoring Perception Filter</option>
+                            <option value="sim-d20">Sim D20: Fast-Talking Audio Disclaimers & Envelope Tracking</option>
+                            <option value="sim-d21">Sim D21: Multimodal TRIBE v2 Forward Encoding & Insular Gating</option>
+                            <option value="sim-g22">Sim G22: General Trust Theorem Minimal Lagged Closure</option>
+                            <option value="sim-g24">Sim G24: Perceptual Genomics & HCN1 Shunting</option>
+                            <option value="sim-g25">Sim G25: The Weber-Fechner Decibel of Trust (dB_T)</option>
+                            <option value="sim-g26">Sim G26: Kant vs Machiavelli in Cultural Topologies</option>
+                            <option value="sim-n">Sim N: Non-Dualism, Markov Blanket Dissolution & Equanimity</option>
+                            <option value="sim-v">Sim V: 1D Sub-Cellular Vibrational Resonance & Reality Filter</option>
+                            <option value="sim-ecol">Sim ECOL: Ecological Carrying Capacity & Allee Extinction</option>
+                        </optgroup>
+
+                        <optgroup label="v4.2 Frontier Simulations (TFP, Whitepaper, Genomics & Assembly Theory)">
+                            <option value="sim-p8c">TFP v4.2: Sim P8c Provider-Diversity Entropy Gate</option>
+                            <option value="sim-p8d">TFP v4.2: Sim P8d Economic Collusion Auction (Nash)</option>
+                            <option value="sim-w8">Whitepaper v4.2: Sim W8 Temporal SHAP Adverse Action & Recourse</option>
+                            <option value="sim-w9">Whitepaper v4.2: Sim W9 Dynamic Lemons Market Solvency ODE</option>
+                            <option value="sim-gen2">DOCAS v4.2: Sim GEN-2 Omnigenic Striatal Coincidence & p-PGS</option>
+                            <option value="sim-gen3">DOCAS v4.2: Sim GEN-3 2S-MR & Colocalization (DOCAS-GATE-2)</option>
+                            <option value="sim-bio1">DOCAS v4.2: Sim BIO-1 Multiscale Coincidence & Levin Bioelectrics</option>
+                            <option value="sim-at2">DOCAS v4.2: Sim AT-2 Multiscale Assembly Spectrum (7 Magnitudes)</option>
+                            <option value="sim-at3">DOCAS v4.2: Sim AT-3 Quantum Morse Expectation & Living Repair</option>
+                            <option value="sim-thermo1">DOCAS v4.2: Sim THERMO-1 Thermodynamic Landauer Bound</option>
+                            <option value="sim-patch1">DOCAS v4.2: Sim PATCH-1 Pyramidal Cell HCN1 Shunting</option>
+                            <option value="sim-amp">DOCAS v4.2: Sim AMP 10^6x Neural Amplifier & TFP Membrane</option>
+                            <option value="sim-mem">DOCAS v4.2: Sim MEM Membrane as Physical Locus of Memory</option>
+                        </optgroup>
+
+                        <optgroup label="v3.0 Canonical Paper Batteries">
+                            <option value="sim-g7">GTT: Sim G7 Master Law Trajectories</option>
+                            <option value="sim-g8">GTT: Sim G8 Closed-Loop Recurrence Ringing</option>
+                            <option value="sim-g9">GTT: Sim G9 Observation-Salience Dissipation</option>
+                            <option value="sim-p1">TFP: Sim P1 Stereographic Kuramoto Coherence</option>
+                            <option value="sim-p3">TFP: Sim P3 Marginal Verification Economics</option>
+                            <option value="sim-p5">TFP: Sim P5 Information Transfer Entropy</option>
+                            <option value="sim-p8">TFP: Sim P8 Sybil Time-Floor & Rollup</option>
+                            <option value="sim-w1">Whitepaper: Sim W1 Parameter Recovery</option>
+                            <option value="sim-w2">Whitepaper: Sim W2 PPV Base-Rate Collapse</option>
+                            <option value="sim-w3">Whitepaper: Sim W3 Cold-Start Seeded Escape</option>
+                            <option value="sim-w4">Whitepaper: Sim W4 Adoption Compounding ODE</option>
+                            <option value="sim-w6">Whitepaper: Sim W6 Breach Exposure vs Key Loss</option>
+                            <option value="sim-vot1">Value-of-Trust: Sim VOT-1 FICO Ceiling vs Protocol</option>
+                            <option value="sim-d1">DOCAS: Sim D1 Active-Inference Emotion Readout</option>
+                            <option value="sim-d2">DOCAS: Sim D2 Mendelian Genome Pathway</option>
+                        </optgroup>
+                        <optgroup label="Exploratory Domain Experiments">
+                            <option value="lambda-universality">GTT: Lambda Universality</option>
+                            <option value="stability-law">GTT: Stability Law</option>
+                            <option value="cross-domain-correlation">GTT: Cross-Domain Correlation</option>
+                            <option value="twin-heritability">DOCAS: Twin Heritability</option>
+                            <option value="criticality-sigma">DOCAS: Criticality Sigma</option>
+                            <option value="pde4b-lambda-correlation">PDE4B: PDE4B-Lambda Correlation</option>
+                            <option value="pde4b-pharmacology">PDE4B: PDE4B Pharmacology</option>
+                            <option value="emotion-mapping">Emotion: Emotion Mapping</option>
+                            <option value="emotion-pharmacology">Emotion: Emotion Pharmacology</option>
+                            <option value="semantic-network">Linguistics: Semantic Network</option>
+                            <option value="semantic-drift">Linguistics: Semantic Drift</option>
+                            <option value="philosophical-oscillation">Philosophy: Philosophical Oscillation</option>
+                            <option value="cultural-quadrants">Culture: Cultural Quadrants</option>
+                            <option value="hofstede-prediction">Culture: Hofstede Prediction</option>
+                            <option value="gdp-prediction">Economics: GDP Prediction</option>
+                            <option value="crisis-threshold">Economics: Crisis Threshold</option>
+                            <option value="trust-weighted-pd">GameTheory: Trust-Weighted PD</option>
+                            <option value="trust-weighted-ultimatum">GameTheory: Trust-Weighted Ultimatum</option>
+                            <option value="evolutionary-dynamics">GameTheory: Evolutionary Dynamics</option>
+                            <option value="psi-trust-auc">TFP: Ψ-Trust AUC</option>
+                            <option value="entropy-reduction">TFP: Entropy Reduction</option>
+                            <option value="cost-model">TFP: Cost Model</option>
+                            <option value="percolation-threshold">Meaning: Percolation Threshold</option>
+                            <option value="civilizational-collapse">Meaning: Civilizational Collapse</option>
+                            <option value="spectral-coherence">Music: Spectral Coherence</option>
+                            <option value="music-trust-correlation">Music: Music-Trust Correlation</option>
+                        </optgroup>
+                    </select>
+                    <span class="form-hint">Choose an experiment to configure parameters</span>
+                </div>
+
+                <!-- Research Hypothesis Popover (Hidden by default, toggled via info icon) -->
+                <div class="hypothesis-popover hidden" id="hypothesis-popover">
+                    <div class="flex items-center justify-between pb-1 mb-2 border-b border-border">
+                        <span class="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Research Hypothesis</span>
+                        <button type="button" id="hypothesis-close-btn" class="text-xs text-muted-foreground hover:text-foreground">✕</button>
+                    </div>
+                    <div class="hypothesis-box" id="hypothesis-box">
+                        <div class="hypothesis-label" id="hypothesis-title">Core Question: Is Trust Measurable?</div>
+                        <p class="hypothesis-text" id="hypothesis-text">
+                            Trust functions as a scale-invariant stabilizing operator that minimizes prediction error across biological (DOCAS), linguistic (CLICS-4), and financial systems.
+                        </p>
+                        <div class="math-model-box" id="hypothesis-math">
+                            ΔS_t = -λ(E_t - V_t)  |  Ψ_trust = (Ψ_bio + Ψ_fin + Ψ_ling) / 3
+                        </div>
+                        <div class="anti-hypothesis-box">
+                            <div class="hypothesis-label" id="anti-hypothesis-label">Anti-Hypothesis (H₀)</div>
+                            <p class="hypothesis-text" id="anti-hypothesis-text">
+                                Trust is an unmeasurable subjective sentiment; multi-agent inequality emerges from noise (λ = 0, ΔH ≥ 0).
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Top-Level Simulation Controls & Action Bar -->
+            <section class="control-section" id="simulation-action-bar">
+                <!-- Play Button -->
+                <div class="play-section" id="play-section">
+                    <button type="button" id="play-button" class="btn btn-primary btn-play w-full py-2 px-3 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-wider shadow transition-colors">
+                        <span>▶</span>
+                        <span>Run Simulation</span>
+                    </button>
+                </div>
+
+                <!-- Simulation Controls (shown when simulation running) -->
+                <div class="simulation-controls-wrap hidden" id="simulation-controls-section">
+                    <div class="simulation-controls flex items-center gap-1.5 mb-2">
+                        <button type="button" id="pause-btn" class="control-btn pause-btn flex-1 py-1.5 px-2 text-xs font-semibold transition-colors" title="Pause simulation">
+                            <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="6" y="4" width="4" height="16"></rect>
+                                <rect x="14" y="4" width="4" height="16"></rect>
+                            </svg>
+                            Pause
+                        </button>
+                        <button type="button" id="resume-btn" class="control-btn resume-btn hidden flex-1 py-1.5 px-2 text-xs font-semibold transition-colors" title="Resume simulation">
+                            <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                            </svg>
+                            Resume
+                        </button>
+                        <button type="button" id="end-btn" class="control-btn end-btn flex-1 py-1.5 px-2 text-xs font-semibold transition-colors" title="End simulation">
+                            <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                <line x1="9" y1="9" x2="15" y2="15"></line>
+                                <line x1="15" y1="9" x2="9" y2="15"></line>
+                            </svg>
+                            End
+                        </button>
+                    </div>
+                    <div class="flex items-center justify-between text-[11px] mb-2 px-1">
+                        <div class="simulation-status" id="simulation-status">
+                            <span class="status-dot"></span>
+                            <span class="status-text">Standby</span>
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <span class="text-muted-foreground text-[10px]">Speed:</span>
+                            <span id="speed-value" class="font-mono text-[10px] font-bold">1.0x</span>
+                        </div>
+                    </div>
+                    <div class="form-group compact mb-0">
+                        <input type="range" id="speed-slider" min="0.5" max="5.0" step="0.5" value="1.0" class="range-slider w-full" title="Simulation speed factor">
+                    </div>
+                </div>
+            </section>
+
+            <!-- Mechanism Layers (9-Layer Architecture) -->
+            <section class="control-section mechanism-layers" id="mechanism-layers-section">
+                <h2 class="control-section-title">Mechanism Layers</h2>
+                
+                <!-- Locked View: Shown when simulation starts -->
+                <div class="accordion-item mechanism-locked hidden" id="mechanism-locked-view">
+                    <button type="button" class="btn accordion-header locked-header" disabled>
+                        <span>🔒 Mechanism Layer (Locked)</span>
+                    </button>
+                    <div class="accordion-body">
+                        <p class="locked-message">Parameters locked while simulation is running.</p>
+                    </div>
+                </div>
+                        <span class="accordion-icon">▼</span>
+                    </button>
+                    <div class="accordion-body">
+                        <p class="locked-message">Parameters locked while simulation is running.</p>
+                    </div>
+                </div>
+
+                <!-- Layer 1: Geography -->
+                <div class="accordion-item layer-accordion-item" data-layer="1">
+                    <button type="button" class="btn accordion-header" data-accordion="layer1">
+                        <span>Layer 1: Geography</span>
+                        <span class="accordion-icon">▼</span>
+                    </button>
+                    <div class="accordion-body hidden" id="layer1">
+                        <label class="layer-toggle">
+                            <input type="checkbox" id="mech-encounters" checked>
+                            <span class="toggle-switch"></span>
+                            <span class="layer-label">Spatial Encounters & Geography</span>
+                            <span class="info-icon" data-info-key="mech-encounters" title="Scientific documentation"></span>
+                        </label>
+                        <!-- Geography Parameters (replaces speed controls) -->
+                        <div class="layer-config" id="config-geography">
+                            <div class="form-group compact">
+                                <label class="form-label">Starting Biome <span class="info-icon" data-info-key="geo-biome-preset" title="Stochastic ecological biome stress preset"></span></label>
+                                <select id="geo-biome-preset" class="form-select geography-param w-full text-xs p-1 bg-card text-foreground border border-border rounded">
+                                    <option value="temperate" selected>Temperate Forest (Baseline)</option>
+                                    <option value="tundra">Tundra / Arctic (-3.9% Norms, 50% Regrowth Penalty)</option>
+                                    <option value="tropics">Equatorial Tropics (38°C Heatwave, +4% Predatory Uptake)</option>
+                                    <option value="archipelago">Archipelago (Fractured Elevation Barriers)</option>
+                                </select>
+                            </div>
+                            <div class="form-group compact">
+                                <label class="form-label">Grid Width <span class="info-icon" data-info-key="geo-grid-width" title="Grid width in cells"></span></label>
+                                <input type="number" id="geo-grid-width" value="100" min="10" max="500" class="form-input geography-param">
+                            </div>
+                            <div class="form-group compact">
+                                <label class="form-label">Grid Height <span class="info-icon" data-info-key="geo-grid-height" title="Grid height in cells"></span></label>
+                                <input type="number" id="geo-grid-height" value="100" min="10" max="500" class="form-input geography-param">
+                            </div>
+                            <div class="form-group compact">
+                                <label class="form-label">Resource Density <span class="info-icon" data-info-key="geo-resource-density" title="Probability of resource spawning per cell (0-1)"></span></label>
+                                <div class="filter-range">
+                                    <input type="range" id="geo-resource-density" min="0" max="10" value="3" step="1" class="range-slider geography-param" data-param="true">
+                                    <span id="val-resource-density" class="range-value">0.3</span>
+                                </div>
+                            </div>
+                            <div class="form-group compact">
+                                <label class="form-label">Initial Resource Amount <span class="info-icon" data-info-key="geo-initial-resource" title="Starting resource amount per cell"></span></label>
+                                <div class="filter-range">
+                                    <input type="range" id="geo-initial-resource" min="1" max="10" value="5" step="1" class="range-slider geography-param" data-param="true">
+                                    <span id="val-initial-resource" class="range-value">50</span>
+                                </div>
+                            </div>
+                            <label class="layer-toggle compact-toggle">
+                                <input type="checkbox" id="geo-altitude-effects" class="geography-param">
+                                <span class="toggle-switch"></span>
+                                <span class="layer-label">Altitude Effects</span>
+                            </label>
+                            <label class="layer-toggle compact-toggle">
+                                <input type="checkbox" id="geo-weather-enabled" class="geography-param">
+                                <span class="toggle-switch"></span>
+                                <span class="layer-label">Weather Enabled</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Layer 2: Genealogy -->
+                <div class="accordion-item layer-accordion-item" data-layer="2">
+                    <button type="button" class="btn accordion-header" data-accordion="layer2">
+                        <span>Layer 2: Genealogy</span>
+                        <span class="accordion-icon">▼</span>
+                    </button>
+                    <div class="accordion-body hidden" id="layer2">
+                        <label class="layer-toggle">
+                            <input type="checkbox" id="mech-genome">
+                            <span class="toggle-switch"></span>
+                            <span class="layer-label">Genetic Inheritance</span>
+                            <span class="info-icon" data-info-key="mech-genome" title="Scientific documentation"></span>
+                        </label>
+                        <div class="layer-config hidden" id="config-genome">
+                            <div class="form-group compact">
+                                <label class="form-label">Kingman Intensity <span class="info-icon" data-info-key="dial-kingman" title="Scientific documentation"></span></label>
+                                <div class="filter-range">
+                                    <input type="range" id="dial-kingman" min="0.1" max="2.0" value="1.0" step="0.1" class="range-slider">
+                                    <span id="val-kingman" class="range-value">1.0</span>
+                                </div>
+                            </div>
+                            <div class="form-group compact">
+                                <label class="form-label">Lineage Depth <span class="info-icon" data-info-key="dial-lineage-depth" title="Scientific documentation"></span></label>
+                                <input type="number" id="dial-lineage-depth" value="10" min="1" max="50">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Layer 3: Biology -->
+                <div class="accordion-item layer-accordion-item" data-layer="3">
+                    <button type="button" class="btn accordion-header" data-accordion="layer3">
+                        <span>Layer 3: Biology</span>
+                        <span class="accordion-icon">▼</span>
+                    </button>
+                    <div class="accordion-body hidden" id="layer3">
+                        <label class="layer-toggle">
+                            <input type="checkbox" id="mech-biology" checked>
+                            <span class="toggle-switch"></span>
+                            <span class="layer-label">Life Dynamics & Metabolism</span>
+                            <span class="info-icon" data-info-key="mech-biology" title="Scientific documentation"></span>
+                        </label>
+                        <!-- Biology Layer Configuration -->
+                        <div class="layer-config" id="config-biology">
+                            <div class="form-group compact">
+                                <label class="form-label">Energy Consumption Rate <span class="info-icon" data-info-key="dial-energy-consumption" title="Scientific documentation"></span></label>
+                                <div class="filter-range">
+                                    <input type="range" id="dial-energy-consumption" min="0" max="10" value="3" step="1" class="range-slider" data-param="true">
+                                    <span id="val-energy-consumption" class="range-value">1.0x</span>
+                                </div>
+                            </div>
+                            <div class="form-group compact">
+                                <label class="form-label">Movement Cost <span class="info-icon" data-info-key="dial-movement-cost" title="Scientific documentation"></span></label>
+                                <div class="filter-range">
+                                    <input type="range" id="dial-movement-cost" min="0" max="10" value="3" step="1" class="range-slider" data-param="true">
+                                    <span id="val-movement-cost" class="range-value">0.5x</span>
+                                </div>
+                            </div>
+                            <div class="form-group compact">
+                                <label class="form-label">Aging Rate (β) <span class="info-icon" data-info-key="dial-aging-beta" title="Scientific documentation"></span></label>
+                                <div class="filter-range">
+                                    <input type="range" id="dial-aging-beta" min="0" max="10" value="5" step="1" class="range-slider" data-param="true">
+                                    <span id="val-aging-beta" class="range-value">0.10</span>
+                                </div>
+                            </div>
+                            <div class="form-group compact">
+                                <label class="form-label">Reproduction Threshold <span class="info-icon" data-info-key="dial-repro-threshold" title="Scientific documentation"></span></label>
+                                <div class="filter-range">
+                                    <input type="range" id="dial-repro-threshold" min="0" max="10" value="5" step="1" class="range-slider" data-param="true">
+                                    <span id="val-repro-threshold" class="range-value">75</span>
+                                </div>
+                            </div>
+                            <div class="form-group compact">
+                                <label class="form-label">Mutation Rate <span class="info-icon" data-info-key="dial-mutation-rate" title="Scientific documentation"></span></label>
+                                <div class="filter-range">
+                                    <input type="range" id="dial-mutation-rate" min="0" max="10" value="1" step="1" class="range-slider" data-param="true">
+                                    <span id="val-mutation-rate" class="range-value">0.001</span>
+                                </div>
+                            </div>
+                            <div class="form-group compact">
+                                <label class="form-label">Epigenetic Methylation Rate <span class="info-icon" data-info-key="dial-epigenetic-methylation" title="Scientific documentation"></span></label>
+                                <div class="filter-range">
+                                    <input type="range" id="dial-epigenetic-methylation" min="0" max="10" value="1" step="1" class="range-slider" data-param="true">
+                                    <span id="val-epigenetic-methylation" class="range-value">0.05</span>
+                                </div>
+                            </div>
+                            <div class="form-group compact">
+                                <label class="form-label">Circadian Sleep Deficit <span class="info-icon" data-info-key="dial-circadian-deficit" title="Scientific documentation"></span></label>
+                                <div class="filter-range">
+                                    <input type="range" id="dial-circadian-deficit" min="0" max="10" value="0" step="1" class="range-slider" data-param="true">
+                                    <span id="val-circadian-deficit" class="range-value">0.00</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Layer 4: Neurobiology -->
+                <div class="accordion-item layer-accordion-item" data-layer="4">
+                    <button type="button" class="btn accordion-header" data-accordion="layer4">
+                        <span>Layer 4: Neurobiology</span>
+                        <span class="accordion-icon">▼</span>
+                    </button>
+                    <div class="accordion-body hidden" id="layer4">
+                        <label class="layer-toggle">
+                            <input type="checkbox" id="mech-docas">
+                            <span class="toggle-switch"></span>
+                            <span class="layer-label">DOCAS Dynamics</span>
+                            <span class="info-icon" data-info-key="mech-docas" title="Scientific documentation"></span>
+                        </label>
+                        <label class="layer-toggle">
+                            <input type="checkbox" id="mech-criticality">
+                            <span class="toggle-switch"></span>
+                            <span class="layer-label">Neural Criticality</span>
+                            <span class="info-icon" data-info-key="mech-criticality" title="Scientific documentation"></span>
+                        </label>
+                        <!-- Neurobiology Layer Configuration -->
+                        <div class="layer-config" id="config-docas">
+                            <div class="form-group compact">
+                                <label class="form-label">DOCAS Response Rate (α) <span class="info-icon" data-info-key="dial-docas-alpha" title="Scientific documentation"></span></label>
+                                <div class="filter-range">
+                                    <input type="range" id="dial-docas-alpha" min="0" max="10" value="5" step="1" class="range-slider" data-param="true">
+                                    <span id="val-docas-alpha" class="range-value">0.5</span>
+                                </div>
+                            </div>
+                            <div class="form-group compact">
+                                <label class="form-label">Trust Curvature Window <span class="info-icon" data-info-key="dial-curvature-window" title="Scientific documentation"></span></label>
+                                <div class="filter-range">
+                                    <input type="range" id="dial-curvature-window" min="0" max="10" value="2" step="1" class="range-slider" data-param="true">
+                                    <span id="val-curvature-window" class="range-value">10</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Layer 5: Psychology -->
+                <div class="accordion-item layer-accordion-item" data-layer="5">
+                    <button type="button" class="btn accordion-header" data-accordion="layer5">
+                        <span>Layer 5: Psychology</span>
+                        <span class="accordion-icon">▼</span>
+                    </button>
+                    <div class="accordion-body hidden" id="layer5">
+                        <label class="layer-toggle">
+                            <input type="checkbox" id="mech-dmn">
+                            <span class="toggle-switch"></span>
+                            <span class="layer-label">Default Mode Network</span>
+                            <span class="info-icon" data-info-key="mech-dmn" title="Scientific documentation"></span>
+                        </label>
+                        <label class="layer-toggle">
+                            <input type="checkbox" id="mech-choice">
+                            <span class="toggle-switch"></span>
+                            <span class="layer-label">Choice Architecture</span>
+                            <span class="info-icon" data-info-key="mech-choice" title="Scientific documentation"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Layer 6: Philosophy -->
+                <div class="accordion-item layer-accordion-item" data-layer="6">
+                    <button type="button" class="btn accordion-header" data-accordion="layer6">
+                        <span>Layer 6: Philosophy</span>
+                        <span class="accordion-icon">▼</span>
+                    </button>
+                    <div class="accordion-body hidden" id="layer6">
+                        <label class="layer-toggle">
+                            <input type="checkbox" id="mech-philosophy" checked>
+                            <span class="toggle-switch"></span>
+                            <span class="layer-label">Philosophical Trust Axis (τ_φ)</span>
+                            <span class="info-icon" data-info-key="mech-philosophy" title="Philosophical orientation: Cartesian skepticism (-1) vs. Kierkegaardian faith (+1)"></span>
+                        </label>
+                        <label class="layer-toggle">
+                            <input type="checkbox" id="mech-language">
+                            <span class="toggle-switch"></span>
+                            <span class="layer-label">Language</span>
+                            <span class="info-icon" data-info-key="mech-language" title="Scientific documentation"></span>
+                        </label>
+                        <div class="layer-config hidden" id="config-language">
+                            <div class="form-group compact">
+                                <label class="form-label">Semantic Drift Rate</label>
+                                <div class="filter-range">
+                                    <input type="range" id="dial-drift" min="0" max="10" value="1.0" step="0.1" class="range-slider">
+                                    <span id="val-drift" class="range-value">1.0</span>
+                                </div>
+                            </div>
+                            <div class="form-group compact">
+                                <label class="form-label">Coherence Threshold</label>
+                                <div class="filter-range">
+                                    <input type="range" id="dial-coherence" min="0" max="1" value="0.7" step="0.05" class="range-slider">
+                                    <span id="val-coherence" class="range-value">0.7</span>
+                                </div>
+                            </div>
+                        </div>
+                        <label class="layer-toggle">
+                            <input type="checkbox" id="mech-music">
+                            <span class="toggle-switch"></span>
+                            <span class="layer-label">Music</span>
+                            <span class="info-icon" data-info-key="mech-music" title="Scientific documentation"></span>
+                        </label>
+                        <label class="layer-toggle">
+                            <input type="checkbox" id="mech-norms">
+                            <span class="toggle-switch"></span>
+                            <span class="layer-label">Shared Norms</span>
+                            <span class="info-icon" data-info-key="mech-norms" title="Scientific documentation"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Layer 7: Ecology -->
+                <div class="accordion-item layer-accordion-item" data-layer="7">
+                    <button type="button" class="btn accordion-header" data-accordion="layer7">
+                        <span>Layer 7: Ecology</span>
+                        <span class="accordion-icon">▼</span>
+                    </button>
+                    <div class="accordion-body hidden" id="layer7">
+                        <label class="layer-toggle">
+                            <input type="checkbox" id="mech-institutions">
+                            <span class="toggle-switch"></span>
+                            <span class="layer-label">Institutions</span>
+                            <span class="info-icon" data-info-key="mech-institutions" title="Scientific documentation"></span>
+                        </label>
+                        <label class="layer-toggle">
+                            <input type="checkbox" id="mech-groups">
+                            <span class="toggle-switch"></span>
+                            <span class="layer-label">Social Groups</span>
+                            <span class="info-icon" data-info-key="mech-groups" title="Scientific documentation"></span>
+                        </label>
+                        <!-- Ecology Layer Configuration -->
+                        <div class="layer-config" id="config-ecology">
+                            <div class="form-group compact">
+                                <label class="form-label">Trust Decay Rate <span class="info-icon" data-info-key="dial-trust-decay" title="Scientific documentation"></span></label>
+                                <div class="filter-range">
+                                    <input type="range" id="dial-trust-decay" min="0" max="10" value="1" step="1" class="range-slider" data-param="true">
+                                    <span id="val-trust-decay" class="range-value">0.001</span>
+                                </div>
+                            </div>
+                            <div class="form-group compact">
+                                <label class="form-label">Reputation Threshold <span class="info-icon" data-info-key="dial-reputation-threshold" title="Scientific documentation"></span></label>
+                                <div class="filter-range">
+                                    <input type="range" id="dial-reputation-threshold" min="0" max="10" value="5" step="1" class="range-slider" data-param="true">
+                                    <span id="val-reputation-threshold" class="range-value">0.5</span>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Relative Distance moved into Layer 7 -->
+                        <div class="control-subsection">
+                            <label class="form-label">Relative Distance Limit <span class="info-icon" data-info-key="relative-distance-threshold" title="Scientific documentation"></span></label>
+                            <div class="filter-range">
+                                <input type="range" id="relative-distance-threshold" min="0" max="50" value="10" class="range-slider">
+                                <span id="relative-distance-val" class="range-value">10</span>
+                            </div>
+                            <span class="range-note">grid units (0 = show all)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Layer 8: Economy -->
+                <div class="accordion-item layer-accordion-item" data-layer="8">
+                    <button type="button" class="btn accordion-header" data-accordion="layer8">
+                        <span>Layer 8: Economy</span>
+                        <span class="accordion-icon">▼</span>
+                    </button>
+                    <div class="accordion-body hidden" id="layer8">
+                        <label class="layer-toggle">
+                            <input type="checkbox" id="mech-economics">
+                            <span class="toggle-switch"></span>
+                            <span class="layer-label">Credit & Banking</span>
+                            <span class="info-icon" data-info-key="mech-economics" title="Scientific documentation"></span>
+                        </label>
+                        <div class="layer-config" id="config-economics">
+                            <div class="form-group compact">
+                                <label class="form-label">Wealth Redistribution Tax <span class="info-icon" data-info-key="dial-tax-redistribution" title="Scientific documentation"></span></label>
+                                <div class="filter-range">
+                                    <input type="range" id="dial-tax-redistribution" min="0" max="10" value="0" step="1" class="range-slider" data-param="true">
+                                    <span id="val-tax-redistribution" class="range-value">0%</span>
+                                </div>
+                            </div>
+                            <div class="form-group compact">
+                                <label class="form-label">Bank Run Sunspot Sensitivity <span class="info-icon" data-info-key="dial-bank-run-sensitivity" title="Scientific documentation"></span></label>
+                                <div class="filter-range">
+                                    <input type="range" id="dial-bank-run-sensitivity" min="0" max="10" value="5" step="1" class="range-slider" data-param="true">
+                                    <span id="val-bank-run-sensitivity" class="range-value">1.0x</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Layer 9: Technology -->
+                <div class="accordion-item layer-accordion-item" data-layer="9">
+                    <button type="button" class="btn accordion-header" data-accordion="layer9">
+                        <span>Layer 9: Technology</span>
+                        <span class="accordion-icon">▼</span>
+                    </button>
+                    <div class="accordion-body hidden" id="layer9">
+                        <label class="layer-toggle">
+                            <input type="checkbox" id="mech-protocol">
+                            <span class="toggle-switch"></span>
+                            <span class="layer-label">Blockchain Protocol</span>
+                            <span class="info-icon" data-info-key="mech-protocol" title="Scientific documentation"></span>
+                        </label>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Optogenetic Intervention Panel (Sim O-Series v4.0) -->
+            <section class="control-section hidden" id="optogenetic-panel">
+                <h2 class="control-section-title">⚡ Optogenetic Causal Controls</h2>
+                
+                <!-- Wavelength Selector -->
+                <div class="form-group compact">
+                    <label class="form-label">Laser Wavelength (PyRhO Opsins)</label>
+                    <div class="opto-wavelength-group">
+                        <label class="opto-radio-label">
+                            <input type="radio" name="opto-wavelength" value="LaserOff" checked>
+                            <span>⚪ Laser OFF (Baseline)</span>
+                        </label>
+                        <label class="opto-radio-label">
+                            <input type="radio" name="opto-wavelength" value="ChR2Blue470nm">
+                            <span>🔵 470nm Blue (ChR2 Excitation)</span>
+                        </label>
+                        <label class="opto-radio-label">
+                            <input type="radio" name="opto-wavelength" value="ArchTYellow566nm">
+                            <span>🟡 566nm Yellow (ArchT Inhibition)</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Target Channels -->
+                <div class="form-group compact">
+                    <label class="form-label">Target Neuromodulatory Carriers</label>
+                    <div class="opto-carriers-row">
+                        <label class="layer-toggle opto-carrier-col">
+                            <input type="checkbox" id="opto-channel-d">
+                            <span class="toggle-switch"></span>
+                            <span class="layer-label opto-carrier-badge">D</span>
+                        </label>
+                        <label class="layer-toggle opto-carrier-col">
+                            <input type="checkbox" id="opto-channel-o">
+                            <span class="toggle-switch"></span>
+                            <span class="layer-label opto-carrier-badge">O</span>
+                        </label>
+                        <label class="layer-toggle opto-carrier-col">
+                            <input type="checkbox" id="opto-channel-c">
+                            <span class="toggle-switch"></span>
+                            <span class="layer-label opto-carrier-badge">C</span>
+                        </label>
+                        <label class="layer-toggle opto-carrier-col">
+                            <input type="checkbox" id="opto-channel-a">
+                            <span class="toggle-switch"></span>
+                            <span class="layer-label opto-carrier-badge">A</span>
+                        </label>
+                        <label class="layer-toggle opto-carrier-col">
+                            <input type="checkbox" id="opto-channel-s">
+                            <span class="toggle-switch"></span>
+                            <span class="layer-label opto-carrier-badge">S</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Cohort Scope -->
+                <div class="form-group compact">
+                    <label class="form-label">Target Cohort Scope</label>
+                    <select id="opto-scope-select" class="preset-select">
+                        <option value="entire" selected>Entire Population (100%)</option>
+                        <option value="d1">Lowest Decile (D₁ Bandwidth)</option>
+                        <option value="d10">Top Decile (D₁₀ Bandwidth)</option>
+                        <option value="custom">Custom Subpopulation %</option>
+                    </select>
+                </div>
+                <div class="form-group compact hidden" id="opto-subpop-wrap">
+                    <label class="form-label">Subpopulation Fraction</label>
+                    <div class="filter-range">
+                        <input type="range" id="opto-subpop-slider" min="1" max="100" value="10" class="range-slider">
+                        <span id="opto-subpop-val" class="range-value">10%</span>
+                    </div>
+                </div>
+            </section>
+            <!-- Visual Agreement & Cloaking Inspector (Sim D16 v4.0) -->
+            <section class="control-section hidden" id="visual-cloaking-panel">
+                <h2 class="control-section-title">🔍 Visual Agreement & Cloaking</h2>
+                
+                <div class="form-group compact">
+                    <label class="form-label">Visual Cloaking Ratio (χ = E_promo / E_disc)</label>
+                    <div class="filter-range">
+                        <input type="range" id="dial-cloaking-ratio" min="10" max="50" value="36" step="1" class="range-slider">
+                        <span id="val-cloaking-ratio" class="range-value">3.65x</span>
+                    </div>
+                    <span class="range-note">1.0x (Transparent) to 5.0x (Heavily Cloaked)</span>
+                </div>
+
+                <div class="form-group compact">
+                    <label class="layer-toggle">
+                        <input type="checkbox" id="toggle-brainit-branch">
+                        <span class="toggle-switch"></span>
+                        <span class="layer-label" id="label-brainit-branch">Brain-IT Branch A (Structural Margins)</span>
+                    </label>
+                </div>
+
+                <div class="form-group compact cloaking-gauge-box">
+                    <div class="cloaking-gauge-row">
+                        <span class="text-muted">Predatory D₁ / D₁₀ Odds Ratio:</span>
+                        <span id="gauge-odds-ratio" class="cloaking-gauge-val-alert">38.9x</span>
+                    </div>
+                    <div class="cloaking-gauge-row">
+                        <span class="text-muted">D₁ (Stressed) Exploitation:</span>
+                        <span id="gauge-d1-rate" class="cloaking-gauge-val">77.2%</span>
+                    </div>
+                    <div class="cloaking-gauge-row">
+                        <span class="text-muted">D₁₀ (Secure) Exploitation:</span>
+                        <span id="gauge-d10-rate" class="cloaking-gauge-val">8.0%</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Environmental Weather & Weather-Shield (Sim D17) -->
+            <section class="control-section hidden" id="weather-shield-panel">
+                <h2 class="control-section-title">🌦️ Planetary Photic-Thermal Gating</h2>
+
+                <div class="form-group compact">
+                    <label class="layer-toggle">
+                        <input type="checkbox" id="toggle-melanopsin-coupling" checked>
+                        <span class="toggle-switch"></span>
+                        <span class="layer-label">Melanopsin (~480nm ipRGC Drive)</span>
+                    </label>
+                </div>
+
+                <div class="form-group compact">
+                    <label class="form-label">Ambient Temperature (Thermal Stress)</label>
+                    <div class="filter-range">
+                        <input type="range" id="dial-weather-temp" min="-10" max="45" value="20" step="1" class="range-slider">
+                        <span id="val-weather-temp" class="range-value">20°C</span>
+                    </div>
+                    <span class="range-note">>35°C triggers acute cortisol squeeze (F_thermal = 1.50)</span>
+                </div>
+
+                <div class="form-group compact mt-2">
+                    <label class="layer-toggle">
+                        <input type="checkbox" id="toggle-weather-shield">
+                        <span class="toggle-switch"></span>
+                        <span class="layer-label">Weather-Shield 24h Buffer</span>
+                    </label>
+                    <span class="range-note">Imposes decision cooling-off during acute thermal distress</span>
+                </div>
+            </section>
+            <!-- Baylor Unconscious State Dynamics (Sim D18) -->
+            <section class="control-section hidden" id="baylor-gating-panel">
+                <h2 class="control-section-title">🧠 Baylor Consciousness Gating (Sim D18)</h2>
+
+                <div class="form-group compact">
+                    <label class="layer-toggle">
+                        <input type="checkbox" id="toggle-baylor-mode">
+                        <span class="toggle-switch"></span>
+                        <span class="layer-label">Baylor Unconscious Mode (M=0, C &lt; 0.12)</span>
+                    </label>
+                    <span class="range-note">Collapses executive threat gate (λ⁻ → 0) and cognitive friction by 92%</span>
+                </div>
+            </section>
+
+
+
+
+            <!-- Visualization Layers -->
+            <section class="control-section" id="visualization-layers-section">
+                <!-- Master Accordion Header -->
+                <div class="accordion-item viz-layers-accordion" id="viz-layers-master">
+                    <button type="button" class="btn accordion-header" data-accordion="viz-layers-body">
+                        <span>Visualization Layers</span>
+                        <span class="accordion-icon">▼</span>
+                    </button>
+                    <div class="accordion-body" id="viz-layers-body">
+                        
+                        <!-- Base Layers Group -->
+                        <div class="accordion-item viz-group-accordion">
+                            <button type="button" class="btn accordion-header" data-accordion="viz-base-layers">
+                                <span>Base Layers</span>
+                                <span class="accordion-icon">▼</span>
+                            </button>
+                            <div class="accordion-body" id="viz-base-layers">
+                                <!-- Agents Layer -->
+                                <div class="viz-layer-item">
+                                    <label class="layer-toggle">
+                                        <input type="checkbox" id="layer-agents" checked>
+                                        <span class="toggle-switch"></span>
+                                        <span class="layer-label">Agents</span>
+                                        <span class="info-icon" data-info-key="layer-agents" title="Scientific documentation"></span>
+                                    </label>
+                                    <div class="opacity-control">
+                                        <label class="opacity-label">Opacity</label>
+                                        <div class="filter-range">
+                                            <input type="range" id="opacity-agents" min="0" max="100" value="100" class="range-slider opacity-slider" data-layer="agents">
+                                            <span id="val-opacity-agents" class="range-value">1.0</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Terrain Layer -->
+                                <div class="viz-layer-item">
+                                    <label class="layer-toggle">
+                                        <input type="checkbox" id="layer-terrain">
+                                        <span class="toggle-switch"></span>
+                                        <span class="layer-label">Terrain</span>
+                                        <span class="info-icon" data-info-key="layer-terrain" title="Scientific documentation"></span>
+                                    </label>
+                                    <div class="opacity-control">
+                                        <label class="opacity-label">Opacity</label>
+                                        <div class="filter-range">
+                                            <input type="range" id="opacity-terrain" min="0" max="100" value="100" class="range-slider opacity-slider" data-layer="terrain">
+                                            <span id="val-opacity-terrain" class="range-value">1.0</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Weather Layer -->
+                                <div class="viz-layer-item">
+                                    <label class="layer-toggle">
+                                        <input type="checkbox" id="layer-weather">
+                                        <span class="toggle-switch"></span>
+                                        <span class="layer-label">Weather</span>
+                                        <span class="info-icon" data-info-key="layer-weather" title="Scientific documentation"></span>
+                                    </label>
+                                    <div class="opacity-control">
+                                        <label class="opacity-label">Opacity</label>
+                                        <div class="filter-range">
+                                            <input type="range" id="opacity-weather" min="0" max="100" value="50" class="range-slider opacity-slider" data-layer="weather">
+                                            <span id="val-opacity-weather" class="range-value">0.5</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Resources Layer -->
+                                <div class="viz-layer-item">
+                                    <label class="layer-toggle">
+                                        <input type="checkbox" id="layer-resources">
+                                        <span class="toggle-switch"></span>
+                                        <span class="layer-label">Resources</span>
+                                        <span class="info-icon" data-info-key="layer-resources" title="Scientific documentation"></span>
+                                    </label>
+                                    <div class="opacity-control">
+                                        <label class="opacity-label">Opacity</label>
+                                        <div class="filter-range">
+                                            <input type="range" id="opacity-resources" min="0" max="100" value="100" class="range-slider opacity-slider" data-layer="resources">
+                                            <span id="val-opacity-resources" class="range-value">1.0</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Harvesting Layer -->
+                                <div class="viz-layer-item">
+                                    <label class="layer-toggle">
+                                        <input type="checkbox" id="layer-harvesting">
+                                        <span class="toggle-switch"></span>
+                                        <span class="layer-label">Harvesting</span>
+                                        <span class="info-icon" data-info-key="layer-harvesting" title="Scientific documentation"></span>
+                                    </label>
+                                    <div class="opacity-control">
+                                        <label class="opacity-label">Opacity</label>
+                                        <div class="filter-range">
+                                            <input type="range" id="opacity-harvesting" min="0" max="100" value="100" class="range-slider opacity-slider" data-layer="harvesting">
+                                            <span id="val-opacity-harvesting" class="range-value">1.0</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Agent State Group -->
+                        <div class="accordion-item viz-group-accordion">
+                            <button type="button" class="btn accordion-header" data-accordion="viz-agent-state">
+                                <span>Agent State</span>
+                                <span class="accordion-icon">▼</span>
+                            </button>
+                            <div class="accordion-body hidden" id="viz-agent-state">
+                                <!-- Emotions Layer -->
+                                <div class="viz-layer-item">
+                                    <label class="layer-toggle">
+                                        <input type="checkbox" id="layer-docas">
+                                        <span class="toggle-switch"></span>
+                                        <span class="layer-label">Emotions</span>
+                                        <span class="info-icon" data-info-key="layer-docas" title="Scientific documentation"></span>
+                                    </label>
+                                    <div class="opacity-control">
+                                        <label class="opacity-label">Opacity</label>
+                                        <div class="filter-range">
+                                            <input type="range" id="opacity-docas" min="0" max="100" value="100" class="range-slider opacity-slider" data-layer="docas">
+                                            <span id="val-opacity-docas" class="range-value">1.0</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Energy Layer -->
+                                <div class="viz-layer-item">
+                                    <label class="layer-toggle">
+                                        <input type="checkbox" id="layer-energy">
+                                        <span class="toggle-switch"></span>
+                                        <span class="layer-label">Energy</span>
+                                        <span class="info-icon" data-info-key="layer-energy" title="Scientific documentation"></span>
+                                    </label>
+                                    <div class="opacity-control">
+                                        <label class="opacity-label">Opacity</label>
+                                        <div class="filter-range">
+                                            <input type="range" id="opacity-energy" min="0" max="100" value="100" class="range-slider opacity-slider" data-layer="energy">
+                                            <span id="val-opacity-energy" class="range-value">1.0</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Groups Layer -->
+                                <div class="viz-layer-item">
+                                    <label class="layer-toggle">
+                                        <input type="checkbox" id="layer-groups">
+                                        <span class="toggle-switch"></span>
+                                        <span class="layer-label">Groups</span>
+                                        <span class="info-icon" data-info-key="layer-groups" title="Scientific documentation"></span>
+                                    </label>
+                                    <div class="opacity-control">
+                                        <label class="opacity-label">Opacity</label>
+                                        <div class="filter-range">
+                                            <input type="range" id="opacity-groups" min="0" max="100" value="100" class="range-slider opacity-slider" data-layer="groups">
+                                            <span id="val-opacity-groups" class="range-value">1.0</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Identity Layer -->
+                                <div class="viz-layer-item">
+                                    <label class="layer-toggle">
+                                        <input type="checkbox" id="layer-identity">
+                                        <span class="toggle-switch"></span>
+                                        <span class="layer-label">Identity</span>
+                                        <span class="info-icon" data-info-key="layer-identity" title="Scientific documentation"></span>
+                                    </label>
+                                    <div class="opacity-control">
+                                        <label class="opacity-label">Opacity</label>
+                                        <div class="filter-range">
+                                            <input type="range" id="opacity-identity" min="0" max="100" value="100" class="range-slider opacity-slider" data-layer="identity">
+                                            <span id="val-opacity-identity" class="range-value">1.0</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Reputation Layer -->
+                                <div class="viz-layer-item">
+                                    <label class="layer-toggle">
+                                        <input type="checkbox" id="layer-network">
+                                        <span class="toggle-switch"></span>
+                                        <span class="layer-label">Reputation</span>
+                                        <span class="info-icon" data-info-key="layer-network" title="Scientific documentation"></span>
+                                    </label>
+                                    <div class="opacity-control">
+                                        <label class="opacity-label">Opacity</label>
+                                        <div class="filter-range">
+                                            <input type="range" id="opacity-network" min="0" max="100" value="100" class="range-slider opacity-slider" data-layer="network">
+                                            <span id="val-opacity-network" class="range-value">1.0</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Relationships Group -->
+                        <div class="accordion-item viz-group-accordion">
+                            <button type="button" class="btn accordion-header" data-accordion="viz-relationships">
+                                <span>Relationships</span>
+                                <span class="accordion-icon">▼</span>
+                            </button>
+                            <div class="accordion-body hidden" id="viz-relationships">
+                                <!-- Relative Layer -->
+                                <div class="viz-layer-item">
+                                    <label class="layer-toggle">
+                                        <input type="checkbox" id="layer-relative">
+                                        <span class="toggle-switch"></span>
+                                        <span class="layer-label">Relative</span>
+                                        <span class="info-icon" data-info-key="layer-relative" title="Scientific documentation"></span>
+                                    </label>
+                                    <div class="opacity-control">
+                                        <label class="opacity-label">Opacity</label>
+                                        <div class="filter-range">
+                                            <input type="range" id="opacity-relative" min="0" max="100" value="100" class="range-slider opacity-slider" data-layer="relative">
+                                            <span id="val-opacity-relative" class="range-value">1.0</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </section>
+
+            <!-- Results Download Panel (shown when simulation completes) -->
+            <section class="control-section hidden" id="results-section">
+                <h2 class="control-section-title">Results</h2>
+                <div class="results-content">
+                    <div class="validation-status" id="validation-status">
+                        <span class="status-badge pending">Pending</span>
+                    </div>
+                    <div class="download-links">
+                        <a href="#" id="download-manifest" class="download-link" download>
+                            <span class="download-icon">📄</span>
+                            <span class="download-label">manifest.json</span>
+                        </a>
+                        <a href="#" id="download-metrics" class="download-link" download>
+                            <span class="download-icon">📊</span>
+                            <span class="download-label">metrics.json</span>
+                        </a>
+                        <a href="#" id="download-replay" class="download-link" download>
+                            <span class="download-icon">🎬</span>
+                            <span class="download-label">replay.json</span>
+                        </a>
+                    </div>
+                    <div class="results-summary" id="results-summary">
+                        <div class="summary-item">
+                            <span class="summary-label">Total Ticks:</span>
+                            <span class="summary-value" id="summary-ticks">—</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Final Agents:</span>
+                            <span class="summary-value" id="summary-agents">—</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Run ID:</span>
+                            <span class="summary-value mono" id="summary-run-id">—</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Export Controls (shown when simulation ends) -->
+            <section class="control-section export-section hidden" id="export-section">
+                <h2 class="control-section-title">Export</h2>
+                <button id="export-btn" class="control-btn export-btn-full" title="Export simulation state">
+                    <svg aria-hidden="true" width="16" height="16" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    Export Simulation State
+                </button>
+            </section>
+
+            <!-- Activity Log (Hidden initially, shown after simulation starts) -->
+            <section class="control-section hidden relative" id="activity-log-panel">
+                <div class="activity-log-header">
+                    <span class="activity-log-title">ACTIVITY LOG</span>
+                    <div class="activity-log-header-right">
+                        <span class="activity-log-status">● LIVE</span>
+                        <button type="button" id="activity-log-fullscreen-btn" class="activity-log-fullscreen-btn" title="Toggle full-screen">
+                            <svg aria-hidden="true" width="16" height="16" class="fullscreen-icon-expand" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="15 3 21 3 21 9"></polyline>
+                                <polyline points="9 21 3 21 3 15"></polyline>
+                                <line x1="21" y1="3" x2="14" y2="10"></line>
+                                <line x1="3" y1="21" x2="10" y2="14"></line>
+                            </svg>
+                            <svg aria-hidden="true" width="16" height="16" class="fullscreen-icon-collapse" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="4 14 10 14 10 20"></polyline>
+                                <polyline points="20 10 14 10 14 4"></polyline>
+                                <line x1="14" y1="10" x2="21" y2="3"></line>
+                                <line x1="3" y1="21" x2="10" y2="14"></line>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div id="activity-log-content" class="activity-log-content">
+                    <div class="activity-log-welcome">Activities will appear here when simulation starts...</div>
+                </div>
+                <div id="activity-log-scroll-indicator" class="activity-log-scroll-indicator">↓ New messages</div>
+            </section>
+
+        </aside>
+
+        <!-- Canvas Container -->
+        <div class="canvas-container relative">
+            <button type="button" id="sim-sidebar-expand-btn" class="sim-sidebar-expand-btn transition-colors" title="Expand Configuration Panel">
+                <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+                <span>Config</span>
+            </button>
+            <canvas id="simulation-canvas"></canvas>
+            <div id="canvas-overlay" class="canvas-overlay">
+                <div class="overlay-content max-w-md p-6 bg-card/95 border border-border shadow-2xl text-center">
+                    <canvas id="loader-canvas" width="160" height="160" class="mx-auto mb-3"></canvas>
+                    <h2 class="text-base font-bold text-foreground mb-1">Agent Society Simulator</h2>
+                    <p class="text-xs text-muted-foreground mb-4" id="overlay-message">
+                        Multi-agent biological, financial, and institutional dynamics under the General Theory of Trust.
+                    </p>
+                    <div class="flex flex-col sm:flex-row gap-2 justify-center items-center">
+                        <button type="button" id="start-default-btn" class="btn btn-primary px-4 py-2 text-xs font-semibold shadow transition-colors">
+                            ▶ Start in Default
+                        </button>
+                        <button type="button" id="configure-sim-btn" class="btn btn-outline px-4 py-2 text-xs font-semibold border border-border bg-muted/30 hover:bg-muted text-foreground transition-colors">
+                            ⚙ Configure Settings
+                        </button>
+                    </div>
+                    <p class="text-[10px] text-muted-foreground mt-3">Empirical parameters pre-registered per OSF GTT/DOCAS protocols.</p>
+                </div>
+            </div>
+            <!-- Game Over Overlay -->
+            <div id="game-over-overlay" class="game-over-overlay hidden">
+                <canvas id="game-over-canvas" width="200" height="200"></canvas>
+                <button id="restart-btn" class="restart-button">↻ RESTART SIMULATION</button>
+            </div>
+            <!-- Real-time v4.0 Analytics & Telemetry Dashboard -->
+            <div id="v4-telemetry-dashboard" class="v4-telemetry-dashboard">
+                <div class="v4-telemetry-header">
+                    <div class="v4-telemetry-left flex items-center gap-3 flex-wrap">
+                        <span class="v4-telemetry-title">📊 TELEMETRY & METRICS</span>
+                        <div class="v4-telemetry-stats flex items-center gap-2 text-[11px]" id="stats-section">
+                            <span class="v4-stat-pill"><strong class="text-muted-foreground">TICK:</strong> <span id="tick-display" class="font-mono font-bold text-foreground">0</span></span>
+                            <span class="v4-stat-pill"><strong class="text-muted-foreground">FPS:</strong> <span id="stat-fps" class="font-mono text-foreground">60</span></span>
+                            <span class="v4-stat-pill"><strong class="text-muted-foreground">ALIVE:</strong> <span id="stat-alive" class="font-mono font-bold text-foreground">20</span> / <span id="stat-agents" class="font-mono text-muted-foreground">20</span></span>
+                            <span class="v4-stat-pill"><strong class="text-muted-foreground">VERIFIED:</strong> <span id="stat-verified" class="font-mono text-foreground">0</span></span>
+                            <span class="v4-stat-pill"><strong class="text-muted-foreground">GROUPS:</strong> <span id="stat-groups" class="font-mono text-foreground">0</span></span>
+                        </div>
+                    </div>
+                    <div class="v4-telemetry-right flex items-center gap-2">
+                        <span id="v4-baylor-val" class="v4-badge">Baylor: M=1 (Conscious)</span>
+                        <span id="v4-friction-val" class="v4-badge">R_fric: 1.00</span>
+                        <button type="button" id="v4-telemetry-toggle-btn" class="v4-telemetry-btn" title="Toggle Dashboard">_</button>
+                    </div>
+                </div>
+                <div class="v4-telemetry-grid">
+                    <!-- Chart 1: The Vulnerability Gradient (Deciles D1-D10) -->
+                    <div class="v4-chart-card">
+                        <div class="v4-chart-title">
+                            <span>Vulnerability Gradient (D₁–D₁₀)</span>
+                            <span id="v4-gradient-badge" class="v4-badge">38.9x OR</span>
+                        </div>
+                        <canvas id="canvas-gradient" width="260" height="110"></canvas>
+                    </div>
+
+                    <!-- Chart 2: Global Kuramoto Coherence (R) -->
+                    <div class="v4-chart-card">
+                        <div class="v4-chart-title">
+                            <span>Global Kuramoto Coherence (R)</span>
+                            <span id="v4-coherence-val" class="v4-badge">R: 0.85</span>
+                        </div>
+                        <canvas id="canvas-kuramoto" width="260" height="110"></canvas>
+                    </div>
+
+                    <!-- Chart 3: Trust State Simplex Delta^4 -->
+                    <div class="v4-chart-card">
+                        <div class="v4-chart-title">
+                            <span>Trust Simplex Δ⁴ [D,O,C,A,S]</span>
+                            <span id="v4-simplex-state" class="v4-badge">Contraction</span>
+                        </div>
+                        <canvas id="canvas-simplex" width="260" height="110"></canvas>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Agent Report Modal -->
+    <div id="agent-inspector-modal" class="agent-modal hidden">
+        <div class="agent-modal-backdrop" data-close-agent-modal="true"></div>
+        <div class="agent-modal-content">
+            <header class="agent-modal-header">
+                <h2 class="agent-modal-title">Agent Report</h2>
+                <button data-close-agent-modal="true" class="btn btn-ghost agent-modal-close" aria-label="Close">×</button>
+            </header>
+            <div class="agent-modal-body">
+                <!-- Left Pane: Biometrics, Lineage, State & DOCAS -->
+                <div class="inspector-col">
+                <!-- 1. Identity Section -->
+                <section class="inspector-section">
+                    <h3 class="inspector-section-title">Identity</h3>
+                    <div class="inspector-grid">
+                        <div class="inspector-item">
+                            <span class="inspector-label">Agent ID</span>
+                            <span id="inspector-agent-id" class="inspector-value mono">—</span>
+                        </div>
+                        <div class="inspector-item">
+                            <span class="inspector-label">Age</span>
+                            <span id="inspector-age" class="inspector-value mono">—</span>
+                        </div>
+                        <div class="inspector-item">
+                            <span class="inspector-label">Status</span>
+                            <span id="inspector-status" class="inspector-value">—</span>
+                        </div>
+                        <div class="inspector-item">
+                            <span class="inspector-label">Identity</span>
+                            <span id="inspector-identity" class="inspector-value">—</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 2. Trust & Reputation -->
+                <section class="inspector-section">
+                    <h3 class="inspector-section-title">Trust & Reputation</h3>
+                    <div class="inspector-grid">
+                        <div class="inspector-item">
+                            <span class="inspector-label">Trust (τ)</span>
+                            <span id="inspector-tau" class="inspector-value mono">—</span>
+                        </div>
+                        <div class="inspector-item">
+                            <span class="inspector-label">Reputation</span>
+                            <span id="inspector-reputation" class="inspector-value">—</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 3. State Section -->
+                <section class="inspector-section">
+                    <h3 class="inspector-section-title">State</h3>
+                    <div class="inspector-grid">
+                        <div class="inspector-item">
+                            <span class="inspector-label">Energy</span>
+                            <span id="inspector-energy" class="inspector-value">—</span>
+                        </div>
+                        <div class="inspector-item">
+                            <span class="inspector-label">Position</span>
+                            <span id="inspector-position" class="inspector-value mono">—</span>
+                        </div>
+                        <div class="inspector-item">
+                            <span class="inspector-label">Group</span>
+                            <span id="inspector-group" class="inspector-value">—</span>
+                        </div>
+                        <div class="inspector-item">
+                            <span class="inspector-label">Generation</span>
+                            <span id="inspector-generation" class="inspector-value">—</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 4. Relative Section (Parentage) -->
+                <section class="inspector-section">
+                    <h3 class="inspector-section-title">Relative</h3>
+                    <div class="inspector-grid">
+                        <div class="inspector-item">
+                            <span class="inspector-label">Parent 1</span>
+                            <span id="inspector-parent1" class="inspector-value">—</span>
+                        </div>
+                        <div class="inspector-item">
+                            <span class="inspector-label">Parent 2</span>
+                            <span id="inspector-parent2" class="inspector-value">—</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 5. Demographics Section (Genealogy) -->
+                <section class="inspector-section">
+                    <h3 class="inspector-section-title">Demographics</h3>
+                    <div class="inspector-grid">
+                        <div class="inspector-item">
+                            <span class="inspector-label">Sex</span>
+                            <span id="inspector-sex" class="inspector-value">—</span>
+                        </div>
+                        <div class="inspector-item">
+                            <span class="inspector-label">Children</span>
+                            <span id="inspector-children" class="inspector-value mono">—</span>
+                        </div>
+                        <div class="inspector-item">
+                            <span class="inspector-label">Grandchildren</span>
+                            <span id="inspector-grandchildren" class="inspector-value mono">—</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Genome Section (Heritable Traits) - Single Segmented Bar -->
+                <section class="inspector-section">
+                    <h3 class="inspector-section-title">Genome (Heritable DOCAS Gains)</h3>
+                    <div class="genome-segmented-bar-container">
+                        <div class="genome-segmented-bar" id="inspector-genome-bar">
+                            <div class="genome-segment dopamine" style="width: 20%"></div>
+                            <div class="genome-segment oxytocin" style="width: 20%"></div>
+                            <div class="genome-segment cortisol" style="width: 20%"></div>
+                            <div class="genome-segment adrenaline" style="width: 20%"></div>
+                            <div class="genome-segment serotonin" style="width: 20%"></div>
+                        </div>
+                        <div class="genome-legend">
+                            <span class="genome-legend-item"><span class="genome-legend-color dopamine"></span>D</span>
+                            <span class="genome-legend-item"><span class="genome-legend-color oxytocin"></span>O</span>
+                            <span class="genome-legend-item"><span class="genome-legend-color cortisol"></span>C</span>
+                            <span class="genome-legend-item"><span class="genome-legend-color adrenaline"></span>A</span>
+                            <span class="genome-legend-item"><span class="genome-legend-color serotonin"></span>S</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- DOCAS State Section (Transient) -->
+                <section class="inspector-section">
+                    <h3 class="inspector-section-title">DOCAS State (Transient)</h3>
+                    <div class="docas-bars" id="inspector-docas-bars">
+                        <div class="docas-bar-row"><span class="docas-label">D</span><div class="docas-bar-container"><div class="docas-bar dopamine" style="width: 0%"></div></div><span class="docas-value">0.00</span></div>
+                        <div class="docas-bar-row"><span class="docas-label">O</span><div class="docas-bar-container"><div class="docas-bar oxytocin" style="width: 0%"></div></div><span class="docas-value">0.00</span></div>
+                        <div class="docas-bar-row"><span class="docas-label">C</span><div class="docas-bar-container"><div class="docas-bar cortisol" style="width: 0%"></div></div><span class="docas-value">0.00</span></div>
+                        <div class="docas-bar-row"><span class="docas-label">A</span><div class="docas-bar-container"><div class="docas-bar adrenaline" style="width: 0%"></div></div><span class="docas-value">0.00</span></div>
+                        <div class="docas-bar-row"><span class="docas-label">S</span><div class="docas-bar-container"><div class="docas-bar serotonin" style="width: 0%"></div></div><span class="docas-value">0.00</span></div>
+                    </div>
+                </section>
+
+                <!-- Plaid Financial Timeseries & Sequestration Wall -->
+                <section class="inspector-section">
+                    <div class="flex items-center justify-between mb-2">
+                        <h3 class="inspector-section-title mb-0">Plaid Cash-Flow & Underwriting (Sequestration Wall)</h3>
+                        <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-muted text-muted-foreground">FCRA Isolated</span>
+                    </div>
+                    <div class="inspector-grid">
+                        <div class="inspector-item">
+                            <span class="inspector-label">Market Score (S_mkt)</span>
+                            <span id="inspector-mkt-score" class="inspector-value mono font-semibold">0.50</span>
+                        </div>
+                        <div class="inspector-item">
+                            <span class="inspector-label">Cash-Flow Buffer</span>
+                            <span id="inspector-cashflow-buffer" class="inspector-value mono">12.5 days</span>
+                        </div>
+                        <div class="inspector-item">
+                            <span class="inspector-label">On-Time Pay Rate</span>
+                            <span id="inspector-ontime-rate" class="inspector-value mono">100%</span>
+                        </div>
+                        <div class="inspector-item">
+                            <span class="inspector-label">NSF / Overdrafts</span>
+                            <span id="inspector-nsf-count" class="inspector-value mono">0</span>
+                        </div>
+                        <div class="inspector-item">
+                            <span class="inspector-label">Spend Volatility</span>
+                            <span id="inspector-spend-volatility" class="inspector-value mono">0.18</span>
+                        </div>
+                        <div class="inspector-item">
+                            <span class="inspector-label">Concordance (Mantel r)</span>
+                            <span id="inspector-concordance-r" class="inspector-value mono">0.88</span>
+                        </div>
+                    </div>
+                </section>
+                </div> <!-- End Left Pane -->
+
+                <!-- Right Pane: 3D Cortical Brain & CLICS-4 Colexification Graph -->
+                <div class="inspector-col">
+                <!-- Wet-Lab & IoT Wearable Biomarkers -->
+                <section class="inspector-section">
+                    <h3 class="inspector-section-title">Wet-Lab & Wearable Biomarkers (Apple Watch · Muse EEG · Stelo CGM)</h3>
+                    <div class="inspector-grid mb-2">
+                        <div class="inspector-item">
+                            <span class="inspector-label">HRV RMSSD (Vagal)</span>
+                            <span id="inspector-hrv-rmssd" class="inspector-value mono">48.0 ms</span>
+                        </div>
+                        <div class="inspector-item">
+                            <span class="inspector-label">Resting Heart Rate</span>
+                            <span id="inspector-resting-hr" class="inspector-value mono">64.0 bpm</span>
+                        </div>
+                        <div class="inspector-item">
+                            <span class="inspector-label">Stelo CGM Glucose</span>
+                            <span id="inspector-glucose" class="inspector-value mono">92.0 mg/dL</span>
+                        </div>
+                        <div class="inspector-item">
+                            <span class="inspector-label">Glucose TIR (70-140)</span>
+                            <span id="inspector-glucose-tir" class="inspector-value mono">88.0%</span>
+                        </div>
+                        <div class="inspector-item">
+                            <span class="inspector-label">Sleep Efficiency</span>
+                            <span id="inspector-sleep-eff" class="inspector-value mono">86.0%</span>
+                        </div>
+                        <div class="inspector-item">
+                            <span class="inspector-label">Deep Sleep (SWS)</span>
+                            <span id="inspector-sleep-deep" class="inspector-value mono">20.0%</span>
+                        </div>
+                        <div class="inspector-item">
+                            <span class="inspector-label">Muse Frontal Theta</span>
+                            <span id="inspector-eeg-theta" class="inspector-value mono">6.2 μV²</span>
+                        </div>
+                        <div class="inspector-item">
+                            <span class="inspector-label">Alpha Asymmetry (FAA)</span>
+                            <span id="inspector-eeg-faa" class="inspector-value mono">+0.05</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 5. Neural Network (3D brain visualization) -->
+                <section class="inspector-section">
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="inspector-section-title mb-0">Neural Activity (DOCAS / Sim D21)</h3>
+                        <button type="button" id="brain-export-btn" class="control-btn px-2 py-0.5 text-xs h-6" title="Export Brain Snapshot PNG">📸 Snapshot</button>
+                    </div>
+                    <div class="brain-canvas-container" style="position: relative; width: 100%; height: 260px; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 8px; overflow: hidden;"> <!-- UI-EXEMPT: UI-001 WebGL canvas gradient -->
+                        <div id="brain-canvas" class="brain-canvas" style="width: 100%; height: 100%;"></div>
+                        <div id="brain-loading" class="brain-loading hidden">
+                            <span>Loading 3D brain...</span>
+                        </div>
+                    </div>
+                    <p class="text-xs text-muted-foreground mt-2" style="font-size: 0.75rem; color: #888; margin-top: 0.5rem;"> <!-- UI-EXEMPT: UI-001 muted text -->
+                        Sim D21 Meta TRIBE v2 fMRI forward encoding. Bilateral Anterior Insula fires on unfair transparent offers, suppressed by 58.1% under multimodal cloaking.
+                    </p>
+                </section>
+                
+                <!-- 6. CLICS-4 Language Graph (Colexification visualization) -->
+                <section class="inspector-section">
+                    <h3 class="inspector-section-title">Language Structure (CLICS-4)</h3>
+                    <div class="clics-canvas-container" style="position: relative; width: 100%; height: 260px; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 8px; overflow: hidden;"> <!-- UI-EXEMPT: UI-001 WebGL canvas gradient -->
+                        <div id="clics-canvas" class="clics-canvas" style="width: 100%; height: 100%;"></div>
+                    </div>
+                    <p class="text-xs text-muted-foreground mt-2" style="font-size: 0.75rem; color: #888; margin-top: 0.5rem;"> <!-- UI-EXEMPT: UI-001 muted text -->
+                        CLICS-4 colexification graph showing concept relationships.
+                        Nodes are concepts, edges show cross-linguistic colexification patterns.
+                        Drag nodes to explore connections.
+                    </p>
+                </section>
+                </div> <!-- End Right Pane -->
+            </div>
+        </div>
+    </div>
+
+{% endblock %}
+
+{% block scripts %}
+    <!-- Three.js for Brain Visualization -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    
+    <!-- D3.js for CLICS Visualization -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    
+    <!-- Simulator Scripts -->
+    <script src="/static/js/pixelated_loader.js?v=4.0.1"></script>
+    <script src="/static/js/brain_visualization.js?v=4.0.1"></script>
+    <script src="/static/js/clics_visualization.js?v=4.0.1"></script>
+    <script src="/static/js/viewer.js?v=4.0.1"></script>
+    <script src="/static/js/controls.js?v=4.0.1"></script>
+    <script src="/static/js/info_tooltips.js?v=4.0.1"></script>
+    <script type="module" src="/static/js/agent-widget.js?v=4.0.1"></script>
+{% endblock %}

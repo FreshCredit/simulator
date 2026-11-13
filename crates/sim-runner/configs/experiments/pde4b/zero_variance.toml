@@ -1,0 +1,33 @@
+# Zero Variance: Clonal population (all agents identical)
+# Purpose: Baseline control - no genetic diversity
+
+[experiment]
+name = "pde4b_zero_variance"
+description = "Clonal population with PDE4B variance = 0"
+replications = 30
+random_seed = 42
+
+[genome]
+# PDE4B loci 24-25: Fixed at 0.5 for all agents
+pde4b_variance_condition = "zero"
+pde4b_locus_24 = 0.5
+pde4b_locus_25 = 0.5
+heritability_h2 = 0.0  # No genetic variance
+
+# Learning rate: λ = 0.1 + 0.3 * pde4b_factor = 0.25 for all
+learning_rate_lambda = 0.25
+
+[sweep]
+enabled = false
+
+[metrics]
+track_trust_variance = true
+track_cooperation_rate = true
+track_learning_rate_distribution = true
+track_emotional_states = true
+track_criticality = true
+
+[output]
+save_trajectories = true
+save_genome_snapshots = true
+snapshot_interval_ticks = 50

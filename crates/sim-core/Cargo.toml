@@ -1,0 +1,69 @@
+# SIM-001: Isolation verified - ZERO product dependencies
+# Per §3 lines 560-575: sim-core MUST NOT import web, DB, auth, blockchain, payments, network, UI, or product crates
+# Per §22.5.3 criterion 3: sim-core crate structure defined
+# NOTE: Simulation crates use sim-* naming (NOT freshcredit-sim-*)
+
+[package]
+name = "sim-core"
+version.workspace = true
+edition.workspace = true
+description = "Deterministic simulation engine kernel for Agent Society Simulator. Strictly isolated from product code."
+authors = ["FreshCredit Simulation Team"]
+license.workspace = true
+readme = "README.md"
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+# SIM-001: Only allowed dependencies are std, rand, serde (no network, no DB, no product crates)
+[dependencies]
+# Random number generation - deterministic with seeded RNG
+rand = { version = "0.8", features = ["std_rng"] }
+
+# Serialization for artifact export (no network features)
+serde = { workspace = true }
+serde_json = "1.0"
+
+# Ordered maps for deterministic iteration (SIM-004: Deterministic Kernel)
+indexmap = { version = "2.0", features = ["serde"] }
+
+# Artifact schemas (sim-* crates allowed per SIM-001)
+sim-artifacts = { path = "../sim-artifacts", version = "0.1.0" }
+
+# Date/time for reporting (no network features)
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+
+# Error handling (no network features)
+anyhow = { version = "1.0", default-features = false }
+
+# Logging/observability (no network features)
+tracing = { version = "0.1", default-features = false }
+
+# NOTE: rayon removed - was declared but never used in codebase
+# Future parallelization can re-add when actually implemented
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "simulation_bench"
+harness = false
+
+[features]
+default = []
+# Future: WASM target for browser sandbox mode (SIM-002 exception)
+
+# SIM-001 VERIFICATION CHECKLIST:
+# ✓ No freshcredit-* dependencies (except sim-* crates)
+# ✓ No tokio, axum, reqwest (no async/network)
+# ✓ No libsql, sqlx (no database)
+# ✓ No blockchain-client, arc-poller (no blockchain)
+# ✓ No agent/* crates (no product agent logic)
+# ✓ No adapters/* crates (no external services)
+
+
+[lints]
+workspace = true
+
+[package.metadata.cargo-udeps.ignore]
+normal = ["workspace-hack"]

@@ -1,0 +1,13 @@
+{% extends "simulator/base.html" %}
+
+{% block title %}Simulator Health | FreshCredit{% endblock %}
+
+{% block content %}
+<main class="p-8">
+    <h1 class="text-xl font-bold">Simulator Service Health</h1>
+    <p>Status: {{ status }}</p>
+    <p>sim-service connected: {{ sim_service_connected }}</p>
+</main>
+{% endblock %}
+
+
