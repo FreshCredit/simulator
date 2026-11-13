@@ -160,7 +160,7 @@ pub async fn get_all_readiness() -> Json<serde_json::Value> {
     let papers = ResearchPaper::all();
 
     let readiness_list: Vec<_> = papers
-// TAG: surface=simulation owner=platform-team rule=GENERAL-001
+        // TAG: surface=simulation owner=platform-team rule=GENERAL-001
         .iter()
         .map(|&paper| {
             let readiness = aggregator.assess_publication_readiness(paper);

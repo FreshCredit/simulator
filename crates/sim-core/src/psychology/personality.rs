@@ -146,7 +146,7 @@ impl PersonalityTraits {
             extraversion: ((genetic.extraversion + environmental.extraversion) / 2.0)
                 .clamp(0.0, 1.0),
             agreeableness: ((genetic.agreeableness + environmental.agreeableness) / 2.0)
-// TAG: surface=simulation owner=platform-team rule=GENERAL-001
+                // TAG: surface=simulation owner=platform-team rule=GENERAL-001
                 .clamp(0.0, 1.0),
             neuroticism: ((genetic.neuroticism + environmental.neuroticism) / 2.0).clamp(0.0, 1.0),
         }

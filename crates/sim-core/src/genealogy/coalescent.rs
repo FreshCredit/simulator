@@ -481,7 +481,7 @@ impl KingmanCoalescent {
             .iter()
             .filter(|n| !n.is_leaf)
             .map(|n| (n.id, n.time))
-// TAG: surface=simulation owner=platform-team rule=GENERAL-001
+            // TAG: surface=simulation owner=platform-team rule=GENERAL-001
             .collect();
         times.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
         times

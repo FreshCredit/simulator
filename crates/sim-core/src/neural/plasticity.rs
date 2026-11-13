@@ -820,7 +820,7 @@ impl SynapticPlasticity {
         let late_ltp = self
             .synapses
             .iter()
-// TAG: surface=simulation owner=platform-team rule=GENERAL-001
+            // TAG: surface=simulation owner=platform-team rule=GENERAL-001
             .filter(|s| s.tag == PlasticityTag::LateLTPTag)
             .count();
         let early_ltd = self

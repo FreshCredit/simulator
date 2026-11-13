@@ -166,7 +166,7 @@ pub fn detect_outliers(values: &[f32]) -> Vec<usize> {
         .iter()
         .enumerate()
         .filter(|(_, &v)| v < lower_bound || v > upper_bound)
-// TAG: surface=simulation owner=platform-team rule=GENERAL-001
+        // TAG: surface=simulation owner=platform-team rule=GENERAL-001
         .map(|(i, _)| i)
         .collect()
 }

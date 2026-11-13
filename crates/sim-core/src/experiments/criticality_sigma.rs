@@ -130,13 +130,12 @@ impl CriticalitySigmaExperiment {
         }
 
         // Log-log regression for power law
-        let data_points: Vec<(f64, f64)> = histogram.iter()
+        let data_points: Vec<(f64, f64)> = histogram
+            .iter()
             .enumerate()
-            .skip(1)  // Skip size 0
+            .skip(1) // Skip size 0
             .filter(|(_, count)| **count > 0)
-            .map(|(size, count)| {
-                ((size as f64).ln(), (*count as f64).ln())
-            })
+            .map(|(size, count)| ((size as f64).ln(), (*count as f64).ln()))
             .collect();
 
         if data_points.len() < 3 {

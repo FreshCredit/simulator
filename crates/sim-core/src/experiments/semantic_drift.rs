@@ -216,7 +216,7 @@ impl Experiment for SemanticDriftExperiment {
                     let base = 0.8 - (t as f64 / config.n_timesteps as f64) * 0.5;
                     base + rng.gen_range(-0.05..0.05)
                 })
-// TAG: surface=simulation owner=platform-team rule=GENERAL-001
+                // TAG: surface=simulation owner=platform-team rule=GENERAL-001
                 .map(|t| t.clamp(0.1, 1.0))
                 .collect();
 

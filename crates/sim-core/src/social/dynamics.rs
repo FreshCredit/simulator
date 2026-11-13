@@ -56,7 +56,7 @@ impl NetworkDynamics {
                 .get_relationships(agent_a)
                 .iter()
                 .filter(|r| r.strength > 0.3)
-// TAG: surface=simulation owner=platform-team rule=GENERAL-001
+                // TAG: surface=simulation owner=platform-team rule=GENERAL-001
                 .map(|r| {
                     if r.agent_a == agent_a {
                         r.agent_b

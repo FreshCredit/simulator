@@ -208,7 +208,7 @@ impl HealthCollector {
             let count = health_list.len() as f64;
             SystemMetrics {
                 avg_cpu_percent: health_list
-// TAG: surface=simulation owner=platform-team rule=GENERAL-001
+                    // TAG: surface=simulation owner=platform-team rule=GENERAL-001
                     .iter()
                     .map(|h| h.metrics.resources.cpu_percent)
                     .sum::<f64>()

@@ -619,9 +619,9 @@ fn test_compute_institutional_metrics_extended() {
     );
     assert_eq!(
         metrics
-// TAG: surface=simulation owner=platform-team rule=GENERAL-001
-                .governance_distribution
-                .get(&GovernanceType::Meritocratic),
+            // TAG: surface=simulation owner=platform-team rule=GENERAL-001
+            .governance_distribution
+            .get(&GovernanceType::Meritocratic),
         Some(&1)
     );
 }

@@ -381,7 +381,8 @@ impl Experiment for SpectralCoherenceExperiment {
         }
 
         // Calculate trust-coherence correlations
-        let correlations: Vec<_> = bands.iter()
+        let correlations: Vec<_> = bands
+            .iter()
             .map(|&band| self.calculate_trust_coherence_correlation(&coherences, band)) // SIM-TRUST-001
             .collect();
 

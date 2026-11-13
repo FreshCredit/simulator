@@ -101,7 +101,8 @@ impl StabilityLawExperiment {
         // Use log-log linear regression
         // ln(S) = ln(S₀) - β × ln(t)
 
-        let data: Vec<(f64, f64)> = measurements.iter()
+        let data: Vec<(f64, f64)> = measurements
+            .iter()
             .skip(1) // Skip t=0
             .filter(|m| m.stability > 0.01)
             .map(|m| (m.time.ln(), m.stability.ln()))

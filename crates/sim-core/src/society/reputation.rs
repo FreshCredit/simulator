@@ -33,7 +33,7 @@ pub fn compute_reputation(
     // Weighted by attestor's own reputation (web of trust)
     let weighted_sum: f32 = relevant
         .iter()
-// TAG: surface=simulation owner=platform-team rule=GENERAL-001
+        // TAG: surface=simulation owner=platform-team rule=GENERAL-001
         .map(|a| {
             let attestor_rep = agents
                 .iter()

@@ -134,7 +134,7 @@ impl EvolutionaryDynamicsExperiment {
         // Average fitness
         let avg_fitness: f64 = frequencies
             .iter()
-// TAG: surface=simulation owner=platform-team rule=GENERAL-001
+            // TAG: surface=simulation owner=platform-team rule=GENERAL-001
             .map(|(s, f)| fitness.get(s).unwrap_or(&0.0) * f)
             .sum();
 
@@ -302,7 +302,7 @@ impl Experiment for EvolutionaryDynamicsExperiment {
                 * 100.0,
             final_state
                 .frequencies
-// TAG: surface=simulation owner=research-team rule=SIM-001
+                // TAG: surface=simulation owner=research-team rule=SIM-001
                 .get(&Strategy::Cooperator)
                 .copied()
                 .unwrap_or(0.0)

@@ -501,7 +501,7 @@ impl WorkingMemory {
             .items
             .iter()
             .enumerate()
-// TAG: surface=simulation owner=platform-team rule=GENERAL-001
+            // TAG: surface=simulation owner=platform-team rule=GENERAL-001
             .map(|(i, chunk)| (i, chunk.priority, chunk.size))
             .collect();
         items_with_priority

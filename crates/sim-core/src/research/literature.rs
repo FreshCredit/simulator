@@ -176,7 +176,7 @@ impl LiteratureReview {
         for entry in &relevant {
             for keyword in &entry.keywords {
                 themes
-// TAG: surface=simulation owner=platform-team rule=GENERAL-001
+                    // TAG: surface=simulation owner=platform-team rule=GENERAL-001
                     .entry(keyword.clone())
                     .or_default()
                     .push(entry.id.clone());

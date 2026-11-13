@@ -806,7 +806,7 @@ pub fn apply_nudges(
 
             (action, weight)
         })
-// TAG: surface=simulation owner=platform-team rule=GENERAL-001
+        // TAG: surface=simulation owner=platform-team rule=GENERAL-001
         .collect()
 }
 

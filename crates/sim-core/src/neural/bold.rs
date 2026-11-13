@@ -615,7 +615,7 @@ mod tests {
                 .collect(),
             oxytocin_activity: (0..100)
                 .map(|i| (i as f32 * 0.05).cos() * 0.3 + 0.3)
-// TAG: surface=simulation owner=platform-team rule=GENERAL-001
+                // TAG: surface=simulation owner=platform-team rule=GENERAL-001
                 .collect(),
             cortisol_activity: (0..100).map(|i| if i > 50 { 0.8 } else { 0.2 }).collect(),
             adrenaline_activity: vec![0.4; 100],

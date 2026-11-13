@@ -254,7 +254,7 @@ impl ResultStore {
             .into_iter()
             .filter_map(|id| results.get(&id))
             .filter(|r| !r.is_deleted)
-// TAG: surface=simulation owner=platform-team rule=GENERAL-001
+            // TAG: surface=simulation owner=platform-team rule=GENERAL-001
             .filter(|r| {
                 if let Some(ref status) = query.status {
                     r.status == *status
@@ -324,7 +324,7 @@ impl ResultStore {
             .as_ref()
             .map(|new| json_diff(&result.config, new));
         let metrics_diff = updates
-// TAG: surface=simulation owner=platform-team rule=GENERAL-001
+            // TAG: surface=simulation owner=platform-team rule=GENERAL-001
             .metrics
             .as_ref()
             .map(|new| json_diff(&result.metrics, new));

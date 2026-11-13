@@ -285,7 +285,7 @@ impl EmbodiedCognition {
                 // Update transparency
                 let current = self
                     .extended_mind
-// TAG: surface=simulation owner=platform-team rule=GENERAL-001
+                    // TAG: surface=simulation owner=platform-team rule=GENERAL-001
                     .transparency_gradients
                     .get(&key)
                     .copied()
@@ -315,7 +315,7 @@ impl EmbodiedCognition {
         self.extended_mind
             .cognitive_scaffolding
             .iter()
-// TAG: surface=simulation owner=platform-team rule=GENERAL-001
+            // TAG: surface=simulation owner=platform-team rule=GENERAL-001
             .find(|s| s.scaffold_type == scaffold_type)
             .map_or(0.0, |s| s.integration_depth)
     }

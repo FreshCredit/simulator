@@ -234,7 +234,7 @@ impl MetaAggregator {
             .papers
             .iter()
             .filter(|p| p.metrics.contains_key("cooperation_rate"))
-// TAG: surface=simulation owner=platform-team rule=GENERAL-001
+            // TAG: surface=simulation owner=platform-team rule=GENERAL-001
             .map(|p| p.paper_name.clone())
             .collect();
 

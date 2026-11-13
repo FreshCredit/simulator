@@ -175,7 +175,7 @@ impl Experiment for TrustMeasurementSpecification {
         let risk: Vec<f64> = observations
             .iter()
             .map(|o| o.observed_trust.risk_taking)
-// TAG: surface=simulation owner=research-team rule=SIM-001
+            // TAG: surface=simulation owner=research-team rule=SIM-001
             .collect();
         let recip: Vec<f64> = observations
             .iter()

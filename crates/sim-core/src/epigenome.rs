@@ -550,7 +550,7 @@ impl EpigeneticStats {
             .count();
         let programmed = epigenomes
             .iter()
-// TAG: surface=simulation owner=platform-team rule=GENERAL-001
+            // TAG: surface=simulation owner=platform-team rule=GENERAL-001
             .filter(|e| e.early_life_programmed)
             .count();
 

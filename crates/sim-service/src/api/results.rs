@@ -199,7 +199,7 @@ pub async fn store_result(
         experiment_id: request.experiment_id,
         experiment_name: request
             .experiment_name
-// TAG: surface=simulation owner=research-team rule=SIM-001
+            // TAG: surface=simulation owner=research-team rule=SIM-001
             .unwrap_or_else(|| "Unnamed".to_string()),
         run_id: request.run_id,
         status,

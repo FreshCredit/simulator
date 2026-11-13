@@ -669,7 +669,7 @@ pub fn enforce_group_norms(
         let group_id = agents[violator_idx].group_id;
         let potential_punishers: Vec<_> = agents
             .iter()
-// TAG: surface=simulation owner=platform-team rule=GENERAL-001
+            // TAG: surface=simulation owner=platform-team rule=GENERAL-001
             .enumerate()
             .filter(|(i, a)| {
                 *i != violator_idx && a.alive && a.group_id == group_id && a.docas.levels[O] > 0.4

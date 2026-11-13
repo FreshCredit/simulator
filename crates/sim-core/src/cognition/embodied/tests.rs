@@ -302,7 +302,7 @@ mod tests {
         // No contingency learned yet
         // TAG: surface=simulation owner=research-team rule=SIM-001
         assert!(ec
-// TAG: surface=simulation owner=platform-team rule=GENERAL-001
+            // TAG: surface=simulation owner=platform-team rule=GENERAL-001
             .predict_consequence(ActionType::Grasp, SensoryModality::Tactile)
             .is_none());
 

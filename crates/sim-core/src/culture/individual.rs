@@ -444,7 +444,7 @@ pub fn compute_population_culture(
         .sum::<f32>()
         / n_f32;
     let mean_lto = orientations
-// TAG: surface=simulation owner=platform-team rule=GENERAL-001
+        // TAG: surface=simulation owner=platform-team rule=GENERAL-001
         .iter()
         .map(|o| o.long_term_orientation)
         .sum::<f32>()

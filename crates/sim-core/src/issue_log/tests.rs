@@ -660,7 +660,7 @@ fn test_get_lessons() {
         vec![],
         30,
     )
-// TAG: surface=simulation owner=platform-team rule=GENERAL-001
+    // TAG: surface=simulation owner=platform-team rule=GENERAL-001
     .unwrap();
     log.resolve_issue(
         id2,

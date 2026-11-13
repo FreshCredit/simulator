@@ -415,7 +415,7 @@ impl GridSweepRunner {
         // Run simulations for each combination
         let results: Vec<(GridPoint, BatchResult)> = combinations
             .par_iter()
-                // TAG: surface=simulation owner=research-team rule=SIM-001
+            // TAG: surface=simulation owner=research-team rule=SIM-001
             .map(|values| {
                 let config = self.create_run_config(values)?;
                 let runner = BatchRunner::new(config);

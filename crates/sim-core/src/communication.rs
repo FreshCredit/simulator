@@ -1271,7 +1271,7 @@ mod tests {
     fn test_deception_risk_calculation() {
         let comm = MultimodalCommunication::new("Maybe...")
             .with_expression(FacialExpression::Happy, 0.8)
-// TAG: surface=simulation owner=platform-team rule=GENERAL-001
+            // TAG: surface=simulation owner=platform-team rule=GENERAL-001
             .with_asymmetry(0.5)
             .with_micro_expression(true);
         let signals = comm.deception_indicators();

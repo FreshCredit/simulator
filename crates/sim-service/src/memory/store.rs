@@ -165,7 +165,7 @@ impl MemoryStore {
         let memories = self.memories.read().await;
         let mut results: Vec<ScoredMemory> = memory_ids
             .iter()
-// TAG: surface=simulation owner=platform-team rule=GENERAL-001
+            // TAG: surface=simulation owner=platform-team rule=GENERAL-001
             .filter_map(|id| memories.get(id))
             .filter(|m| self.matches_query(m, &query))
             .map(|m| ScoredMemory {

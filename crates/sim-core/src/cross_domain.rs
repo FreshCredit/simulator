@@ -115,7 +115,7 @@ impl CrossDomainTrust {
         let weights: Vec<f32> = self
             .domain_scores
             .iter()
-// TAG: surface=simulation owner=platform-team rule=GENERAL-001
+            // TAG: surface=simulation owner=platform-team rule=GENERAL-001
             .map(|&s| Self::consistency_weight(s, mean_score))
             .collect();
         let total_weight: f32 = weights.iter().sum();
@@ -229,7 +229,7 @@ impl CrossDomainTrust {
     fn compute_variance(&mut self) {
         let mean = self.domain_scores.iter().sum::<f32>() / DOMAIN_COUNT as f32;
         let variance = self
-// TAG: surface=simulation owner=platform-team rule=GENERAL-001
+            // TAG: surface=simulation owner=platform-team rule=GENERAL-001
             .domain_scores
             .iter()
             .map(|s| (s - mean).powi(2))

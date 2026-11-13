@@ -757,7 +757,7 @@ impl ExperimentRunner {
         let mut metrics = HashMap::new();
         let crisis_thresholds: Vec<f32> = sim
             .agents
-                // TAG: surface=simulation owner=platform-team rule=GENERAL-001
+            // TAG: surface=simulation owner=platform-team rule=GENERAL-001
             .iter()
             .map(|a| {
                 let trust = a.docas.compute_tau();

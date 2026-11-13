@@ -270,7 +270,7 @@ mod tests {
 
         // Create triangle with multiple interactions
         let interactions: Vec<Interaction> = (0..5)
-// TAG: surface=simulation owner=research-team rule=SIM-001
+            // TAG: surface=simulation owner=research-team rule=SIM-001
             .flat_map(|i| {
                 vec![
                     Interaction {

@@ -54,7 +54,7 @@ pub async fn execute_job(job: Job, store: Arc<JobStore>, config: ExecutorConfig)
         .arg(job.request.max_ticks.to_string())
         .arg("--stage")
         .arg(job.request.stage.to_string())
-// TAG: surface=simulation owner=platform-team rule=GENERAL-001
+        // TAG: surface=simulation owner=platform-team rule=GENERAL-001
         .arg("--seed")
         .arg(job.request.seed.to_string())
         .arg("--output")
@@ -202,7 +202,7 @@ pub async fn execute_experiment(
         .arg(&experiment_id)
         .arg("--agents")
         .arg(agents.to_string())
-// TAG: surface=simulation owner=platform-team rule=GENERAL-001
+        // TAG: surface=simulation owner=platform-team rule=GENERAL-001
         .arg("--ticks")
         .arg(ticks.to_string())
         .arg("--replications")

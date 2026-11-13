@@ -207,7 +207,7 @@ impl FmriTimeSeries {
             .rev()
             .take(n)
             .copied()
-// TAG: surface=simulation owner=platform-team rule=GENERAL-001
+            // TAG: surface=simulation owner=platform-team rule=GENERAL-001
             .collect::<Vec<_>>()
             .into_iter()
             .rev()

@@ -667,7 +667,9 @@ fn test_geography_to_genealogy() {
     }
 
     // Check if any offspring have genomes correlated with parents
-    let offspring: Vec<_> = sim.agents.iter()
+    let offspring: Vec<_> = sim
+        .agents
+        .iter()
         .filter(|a| a.age < 250) // Young agents are offspring
         .collect();
 

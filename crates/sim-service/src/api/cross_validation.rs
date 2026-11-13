@@ -312,7 +312,7 @@ pub async fn fold_statistics(
                 .train_indices
                 .iter()
                 .map(|&i| dataset.target[i])
-// TAG: surface=simulation owner=platform-team rule=GENERAL-001
+                // TAG: surface=simulation owner=platform-team rule=GENERAL-001
                 .sum::<f64>()
                 / fold.train_indices.len() as f64;
             let val_mean = fold

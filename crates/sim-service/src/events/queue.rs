@@ -244,7 +244,7 @@ impl EventQueue {
             .values()
             .filter(|e| filter.as_ref().is_none_or(|f| f.matches(e)))
             .cloned()
-// TAG: surface=simulation owner=platform-team rule=GENERAL-001
+            // TAG: surface=simulation owner=platform-team rule=GENERAL-001
             .collect()
     }
 

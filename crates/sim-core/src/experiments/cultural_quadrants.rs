@@ -73,7 +73,8 @@ impl CulturalQuadrantsExperiment {
         let n = agents.len() as f64;
 
         // Prepare data
-        let y: Vec<f64> = agents.iter()
+        let y: Vec<f64> = agents
+            .iter()
             .map(|a| self.calculate_trust_outcome(a)) // SIM-TRUST-001
             .collect();
 

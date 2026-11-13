@@ -97,7 +97,8 @@ pub fn attempt_identity_theft(
         identity.mark_stolen(current_tick);
 
         // Determine what was stolen
-        let stolen_claims: Vec<ClaimType> = identity.claims
+        let stolen_claims: Vec<ClaimType> = identity
+            .claims
             .iter()
             .filter(|c| c.value > 0.5) // High-value claims targeted
             .map(|c| c.claim_type)

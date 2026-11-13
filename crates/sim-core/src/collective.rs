@@ -536,7 +536,7 @@ impl CollectiveIntentionality {
         let groups_with_common_knowledge = self
             .groups
             .iter()
-// TAG: surface=simulation owner=platform-team rule=GENERAL-001
+            // TAG: surface=simulation owner=platform-team rule=GENERAL-001
             .filter(|g| g.common_knowledge_established)
             .count();
 

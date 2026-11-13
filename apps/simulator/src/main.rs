@@ -70,7 +70,7 @@ fn cors_layer() -> CorsLayer {
     };
 
     CorsLayer::new()
-            // TAG: surface=simulation owner=research-team rule=SIM-001
+        // TAG: surface=simulation owner=research-team rule=SIM-001
         .allow_origin(allowed_origins)
         .allow_methods([
             http::Method::GET,
@@ -107,35 +107,64 @@ fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/live", get(handlers::live_stream))
         .route("/api/live/restart", post(handlers::restart_simulation))
         .route("/api/live/intervention", post(handlers::live_intervention))
-
         .route("/api/live/pause", post(handlers::pause_simulation))
         .route("/api/live/resume", post(handlers::resume_simulation))
         .route("/api/live/stop", post(handlers::stop_simulation))
         .route("/api/live/status", get(handlers::get_simulation_status))
         .route("/api/live/speed", post(handlers::set_speed))
         .route("/api/live/speed", get(handlers::get_speed))
-        .route("/api/live/state/export", get(handlers::export_simulation_state))
-        .route("/api/live/state/import", post(handlers::import_simulation_state))
+        .route(
+            "/api/live/state/export",
+            get(handlers::export_simulation_state),
+        )
+        .route(
+            "/api/live/state/import",
+            post(handlers::import_simulation_state),
+        )
         .route("/api/live/report", get(handlers::get_simulation_report))
         .route("/api/ai/stream", get(handlers::ai_stream))
         .route("/api/ai/chat", post(handlers::ai_chat))
         // Artifact routes
         .route("/api/runs", get(handlers::list_runs))
         .route("/api/runs/:run_id/manifest", get(handlers::get_manifest))
-        .route("/api/runs/:run_id/replay/:tick", get(handlers::get_replay_frame))
+        .route(
+            "/api/runs/:run_id/replay/:tick",
+            get(handlers::get_replay_frame),
+        )
         // Neural data routes
-        .route("/api/neural/agent/:agent_id", get(handlers::get_neural_agent))
-        .route("/api/neural/population", get(handlers::get_neural_population))
+        .route(
+            "/api/neural/agent/:agent_id",
+            get(handlers::get_neural_agent),
+        )
+        .route(
+            "/api/neural/population",
+            get(handlers::get_neural_population),
+        )
         // PDE4B configuration routes
-        .route("/api/config/pde4b", get(handlers::get_pde4b_config).post(handlers::update_pde4b_config))
+        .route(
+            "/api/config/pde4b",
+            get(handlers::get_pde4b_config).post(handlers::update_pde4b_config),
+        )
         .route("/api/stats/lambda", get(handlers::get_lambda_stats))
         // Experiment routes
         .route("/api/experiments", get(handlers::list_experiments))
         .route("/api/experiments/:exp_id", get(handlers::get_experiment))
-        .route("/api/experiments/:exp_id/schema", get(handlers::get_experiment_schema))
-        .route("/api/experiments/:exp_id/runs", post(handlers::launch_experiment))
-        .route("/api/experiment-runs/:run_id", get(handlers::get_experiment_run_status))
-        .route("/api/experiment-runs/:run_id/stream", get(handlers::stream_experiment_progress))
+        .route(
+            "/api/experiments/:exp_id/schema",
+            get(handlers::get_experiment_schema),
+        )
+        .route(
+            "/api/experiments/:exp_id/runs",
+            post(handlers::launch_experiment),
+        )
+        .route(
+            "/api/experiment-runs/:run_id",
+            get(handlers::get_experiment_run_status),
+        )
+        .route(
+            "/api/experiment-runs/:run_id/stream",
+            get(handlers::stream_experiment_progress),
+        )
         // Validation routes
         .route("/api/validate", post(handlers::run_validation));
 
