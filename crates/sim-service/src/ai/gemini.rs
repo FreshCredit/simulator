@@ -216,9 +216,9 @@ impl GeminiConfig {
     ///
     /// Returns an error if the operation fails.
     pub fn from_env() -> Result<Self, GeminiError> {
-        let api_key = std::env::var("FRESHCREDIT_GEMINI__API_KEY")
-            .or_else(|_| std::env::var("GEMINI_API_KEY"))
+        let api_key = std::env::var("GEMINI_API_KEY")
             .or_else(|_| std::env::var("GOOGLE_AI_API_KEY"))
+            .or_else(|_| std::env::var("SIM_GEMINI_API_KEY"))
             .map_err(|_| GeminiError::ApiKeyNotFound)?;
 
         let model =
@@ -313,7 +313,12 @@ impl SimGeminiService {
 
         if !response.status().is_success() {
             let status = response.status();
-            let error_text = response.text().await.unwrap_or_default();
+            let error_text = crate::http_client::read_bounded_text(
+                response,
+                crate::http_client::DEFAULT_MAX_RESPONSE_BYTES,
+            )
+            .await
+            .unwrap_or_default();
             return Err(GeminiError::ApiError(format!(
                 "HTTP {status}: {error_text}"
             )));

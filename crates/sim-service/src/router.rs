@@ -251,12 +251,12 @@ pub fn create_router_with_config(
 
 /// Builds the CORS layer for browser access (ENT-008 compliance).
 fn build_cors_layer() -> CorsLayer {
-    // Use ALLOWED_ORIGINS env var or default to safe localhost/production origins
+    // Use ALLOWED_ORIGINS env var or default to safe localhost origins
     let allowed_origins: Vec<String> = std::env::var("ALLOWED_ORIGINS").map_or_else(
         |_| {
             vec![
-                "https://app.freshcredit.io".to_string(),
-                "https://staging.freshcredit.io".to_string(),
+                "http://localhost:3000".to_string(),
+                "http://localhost:8080".to_string(),
             ]
         },
         |s| s.split(',').map(|o| o.trim().to_string()).collect(),
@@ -270,10 +270,10 @@ fn build_cors_layer() -> CorsLayer {
         .collect();
 
     // BUILD-005 MARKER: Empty origins fallback implemented
-    // Ensure at least one origin is present (fallback for Cloud Run health checks)
+    // Ensure at least one origin is present (fallback for health checks)
     if origins.is_empty() {
         origins.push(axum::http::HeaderValue::from_static(
-            "https://app.freshcredit.io",
+            "http://localhost:3000",
         ));
     }
     // TAG: surface=simulation owner=platform-team rule=GENERAL-001
@@ -526,7 +526,7 @@ fn build_memory_routes() -> Router {
             get(query_memories).delete(clear_memories),
         )
         .route("/memory/:agent_id/stats", get(get_memory_stats))
-        // TAG: surface=simulation owner=research-team rule=SIM-001
+// TAG: surface=simulation owner=research-team rule=SIM-001
         .route("/memory/:agent_id/consolidate", post(consolidate_memories))
         .route(
             "/memory/:agent_id/retrieve/context",
@@ -557,31 +557,13 @@ fn build_event_routes() -> Router {
     Router::new()
         // Simulation-scoped routes (must come before /events/:event_id)
         .route("/events/simulation/:simulation_id", post(submit_event))
-        .route(
-            "/events/simulation/:simulation_id/immediate",
-            post(inject_immediate),
-        )
-        .route(
-            "/events/simulation/:simulation_id/scenario",
-            post(inject_scenario),
-        )
-        .route(
-            "/events/simulation/:simulation_id/pending",
-            get(get_pending_events),
-        )
-        .route(
-            "/events/simulation/:simulation_id/stats",
-            get(get_event_stats),
-        )
-        .route(
-            "/events/simulation/:simulation_id/stream",
-            get(stream_events),
-        )
+        .route("/events/simulation/:simulation_id/immediate", post(inject_immediate))
+        .route("/events/simulation/:simulation_id/scenario", post(inject_scenario))
+        .route("/events/simulation/:simulation_id/pending", get(get_pending_events))
+        .route("/events/simulation/:simulation_id/stats", get(get_event_stats))
+        .route("/events/simulation/:simulation_id/stream", get(stream_events))
         // Event-specific routes
-        .route(
-            "/events/:event_id",
-            get(get_event_status).delete(cancel_event),
-        )
+        .route("/events/:event_id", get(get_event_status).delete(cancel_event))
         .route("/events/:event_id/cancel", post(cancel_event_post))
         .with_state(event_state)
 }
@@ -627,18 +609,12 @@ fn build_pattern_routes() -> Router {
         // Template routes
         .route("/patterns/templates", get(list_templates))
         .route("/patterns/templates/:template_id", get(get_template))
-        .route(
-            "/patterns/templates/:template_id/execute",
-            post(execute_from_template),
-        )
+        .route("/patterns/templates/:template_id/execute", post(execute_from_template))
         // Pattern execution routes
         .route("/patterns", get(list_patterns).post(execute_pattern))
         .route("/patterns/validate", post(validate_pattern))
         .route("/patterns/preview", post(preview_pattern))
-        .route(
-            "/patterns/:pattern_id",
-            get(get_pattern_status).delete(cancel_pattern),
-        )
+        .route("/patterns/:pattern_id", get(get_pattern_status).delete(cancel_pattern))
         .route("/patterns/:pattern_id/results", get(get_pattern_results))
         .route("/patterns/:pattern_id/export", post(export_pattern_results))
         .with_state(pattern_state)

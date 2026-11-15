@@ -97,6 +97,10 @@ pub enum BlockchainError {
     /// Http
     Http(#[from] reqwest::Error),
 
+    #[error("HTTP body error: {0}")]
+    /// Bounded HTTP body read error
+    BoundedBody(#[from] crate::http_client::BoundedBodyError),
+
     #[error("Bridge error: {0}")]
     /// Bridge
     Bridge(String),
@@ -200,7 +204,11 @@ impl BlockchainAnchor {
             .await?;
 
         if !response.status().is_success() {
-            let error_text = response.text().await?;
+            let error_text = crate::http_client::read_bounded_text(
+                response,
+                crate::http_client::DEFAULT_MAX_RESPONSE_BYTES,
+            )
+            .await?;
             return Err(BlockchainError::Bridge(error_text));
         }
 
@@ -268,7 +276,11 @@ impl BlockchainAnchor {
             .await?;
 
         if !response.status().is_success() {
-            let error_text = response.text().await?;
+            let error_text = crate::http_client::read_bounded_text(
+                response,
+                crate::http_client::DEFAULT_MAX_RESPONSE_BYTES,
+            )
+            .await?;
             return Err(BlockchainError::Bridge(error_text));
         }
 
@@ -288,7 +300,11 @@ impl BlockchainAnchor {
             .await?;
 
         if !response.status().is_success() {
-            let error_text = response.text().await?;
+            let error_text = crate::http_client::read_bounded_text(
+                response,
+                crate::http_client::DEFAULT_MAX_RESPONSE_BYTES,
+            )
+            .await?;
             return Err(BlockchainError::Bridge(error_text));
         }
 

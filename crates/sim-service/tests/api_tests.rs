@@ -172,7 +172,7 @@ async fn test_cors_headers_present() {
         .oneshot(
             Request::builder()
                 .uri("/api/runs")
-                .header("Origin", "https://app.freshcredit.io")
+                .header("Origin", "http://localhost:3000")
                 .body(Body::empty())
                 .unwrap(),
         )
