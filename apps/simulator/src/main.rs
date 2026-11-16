@@ -240,8 +240,12 @@ async fn main() -> anyhow::Result<()> {
         .build()?;
 
     // Create application state
+    let sim_service_api_key = std::env::var("SIM_SERVICE_API_KEY")
+        .ok()
+        .filter(|s| !s.is_empty());
     let state = Arc::new(AppState {
         sim_service_url: args.sim_service_url,
+        sim_service_api_key,
         http_client,
     });
 
@@ -295,6 +299,7 @@ mod tests {
     fn test_create_router() {
         let state = Arc::new(AppState {
             sim_service_url: "http://localhost:8082".to_string(),
+            sim_service_api_key: None,
             http_client: reqwest::Client::new(),
         });
         let router = create_router(state);

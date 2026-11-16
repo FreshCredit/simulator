@@ -60,6 +60,38 @@ pub async fn health(State(state): State<Arc<AppState>>) -> impl IntoResponse {
 // API Proxy Routes (proxy to sim-service)
 // ============================================================================
 
+fn is_valid_path_segment(seg: &str) -> bool {
+    !seg.is_empty()
+        && seg.len() <= 128
+        && !seg.contains("..")
+        && seg
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.'))
+}
+
+fn bad_path_segment_response() -> Response {
+    (
+        StatusCode::BAD_REQUEST,
+        Json(serde_json::json!({"error": "Invalid path parameter"})),
+    )
+        .into_response()
+}
+
+fn attach_service_auth(req: reqwest::RequestBuilder, state: &AppState) -> reqwest::RequestBuilder {
+    match state.sim_service_api_key {
+        Some(ref key) if !key.is_empty() => req.header("x-api-key", key),
+        _ => req,
+    }
+}
+
+fn service_unavailable_response() -> Response {
+    (
+        StatusCode::SERVICE_UNAVAILABLE,
+        Json(serde_json::json!({"error": "sim-service unavailable"})),
+    )
+        .into_response()
+}
+
 /// List available simulation runs
 pub async fn list_runs(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     proxy_get(state, "/api/runs").await
@@ -70,6 +102,9 @@ pub async fn get_manifest(
     State(state): State<Arc<AppState>>,
     Path(run_id): Path<String>,
 ) -> impl IntoResponse {
+    if !is_valid_path_segment(&run_id) {
+        return bad_path_segment_response();
+    }
     proxy_get(state, &format!("/api/runs/{run_id}/manifest")).await
 }
 
@@ -78,6 +113,9 @@ pub async fn get_replay_frame(
     State(state): State<Arc<AppState>>,
     Path((run_id, tick)): Path<(String, u64)>,
 ) -> impl IntoResponse {
+    if !is_valid_path_segment(&run_id) {
+        return bad_path_segment_response();
+    }
     proxy_get(state, &format!("/api/runs/{run_id}/replay/{tick}")).await
 }
 
@@ -119,6 +157,9 @@ pub async fn evaluate_battery(
     Path(id): Path<String>,
     body: Body,
 ) -> impl IntoResponse {
+    if !is_valid_path_segment(&id) {
+        return bad_path_segment_response();
+    }
     proxy_post_body(state, &format!("/api/batteries/{id}/evaluate"), body).await
 }
 
@@ -132,6 +173,9 @@ pub async fn get_experiment(
     State(state): State<Arc<AppState>>,
     Path(exp_id): Path<String>,
 ) -> impl IntoResponse {
+    if !is_valid_path_segment(&exp_id) {
+        return bad_path_segment_response();
+    }
     proxy_get(state, &format!("/api/experiments/{exp_id}")).await
 }
 
@@ -140,6 +184,9 @@ pub async fn get_experiment_schema(
     State(state): State<Arc<AppState>>,
     Path(exp_id): Path<String>,
 ) -> impl IntoResponse {
+    if !is_valid_path_segment(&exp_id) {
+        return bad_path_segment_response();
+    }
     proxy_get(state, &format!("/api/experiments/{exp_id}/schema")).await
 }
 
@@ -149,6 +196,9 @@ pub async fn launch_experiment(
     Path(exp_id): Path<String>,
     body: Body,
 ) -> impl IntoResponse {
+    if !is_valid_path_segment(&exp_id) {
+        return bad_path_segment_response();
+    }
     proxy_post_body(state, &format!("/api/experiments/{exp_id}/runs"), body).await
 }
 
@@ -157,6 +207,9 @@ pub async fn get_experiment_run_status(
     State(state): State<Arc<AppState>>,
     Path(run_id): Path<String>,
 ) -> impl IntoResponse {
+    if !is_valid_path_segment(&run_id) {
+        return bad_path_segment_response();
+    }
     proxy_get(state, &format!("/api/experiment-runs/{run_id}")).await
 }
 
@@ -166,17 +219,18 @@ pub async fn stream_experiment_progress(
     State(state): State<Arc<AppState>>,
     Path(run_id): Path<String>,
 ) -> impl IntoResponse {
+    if !is_valid_path_segment(&run_id) {
+        return bad_path_segment_response();
+    }
     // PERF-001: Add request timeout (shorter for SSE)
-    match state
+    let req = state
         .http_client
         .get(format!(
             "{}/api/experiment-runs/{}/stream",
             state.sim_service_url, run_id
         ))
-        .timeout(Duration::from_secs(60))
-        .send()
-        .await
-    {
+        .timeout(Duration::from_secs(60));
+    match attach_service_auth(req, &state).send().await {
         Ok(resp) => {
             let status = resp.status();
             let body = read_bounded_text_sim(resp, MAX_BODY_SIZE).await;
@@ -188,11 +242,7 @@ pub async fn stream_experiment_progress(
         }
         Err(e) => {
             warn!("sim-service error: {e}");
-            (
-                StatusCode::SERVICE_UNAVAILABLE,
-                format!(r#"{{"error": "sim-service unavailable: {e}"}}"#),
-            )
-                .into_response()
+            service_unavailable_response()
         }
     }
 }
@@ -209,6 +259,7 @@ mod tests {
         let mock_server = MockServer::start().await;
         let state = Arc::new(AppState {
             sim_service_url: mock_server.uri(),
+            sim_service_api_key: None,
             http_client: reqwest::Client::new(),
             // TAG: surface=simulation owner=research-team rule=SIM-001
         });
@@ -219,6 +270,7 @@ mod tests {
     async fn test_index_handler() {
         let state = Arc::new(AppState {
             sim_service_url: "http://localhost:8082".to_string(),
+            sim_service_api_key: None,
             http_client: reqwest::Client::new(),
         });
         let response = index(State(state)).await.into_response();
@@ -485,12 +537,26 @@ mod tests {
     async fn test_stream_experiment_progress_failure() {
         let state = Arc::new(AppState {
             sim_service_url: "http://127.0.0.1:1".to_string(),
+            sim_service_api_key: None,
             http_client: reqwest::Client::new(),
         });
         let response = stream_experiment_progress(State(state), Path("run-123".to_string()))
             .await
             .into_response();
         assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    #[tokio::test]
+    async fn test_proxy_rejects_traversal_segments() {
+        let (state, _mock) = setup_state().await;
+        let resp = get_manifest(State(state.clone()), Path("../secret".to_string()))
+            .await
+            .into_response();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let resp2 = get_experiment_run_status(State(state), Path("a/b".to_string()))
+            .await
+            .into_response();
+        assert_eq!(resp2.status(), StatusCode::BAD_REQUEST);
     }
 
     #[tokio::test]
@@ -559,6 +625,7 @@ mod tests {
         let state = Arc::new(AppState {
             // TAG: surface=simulation owner=research-team rule=SIM-001
             sim_service_url: "http://127.0.0.1:1".to_string(),
+            sim_service_api_key: None,
             http_client: reqwest::Client::new(),
         });
         let response = live_stream(State(state)).await;
@@ -740,22 +807,15 @@ pub async fn live_stream(State(state): State<Arc<AppState>>) -> Response {
     let sse_client = sse_client(&state.http_client);
 
     info!("[PROXY] Sending request to sim-service...");
-    let resp = match sse_client
-        .get(format!("{}/api/live", state.sim_service_url))
-        .send()
-        .await
-    {
+    let req = sse_client.get(format!("{}/api/live", state.sim_service_url));
+    let resp = match attach_service_auth(req, &state).send().await {
         Ok(resp) => {
             info!("[PROXY] Got response from sim-service: {}", resp.status());
             resp
         }
         Err(e) => {
             warn!("[PROXY] Failed to connect to sim-service: {e}");
-            return (
-                StatusCode::SERVICE_UNAVAILABLE,
-                format!(r#"{{"error": "sim-service unavailable: {e}"}}"#),
-            )
-                .into_response();
+            return service_unavailable_response();
         }
     };
 
@@ -851,19 +911,12 @@ pub async fn ai_stream(State(state): State<Arc<AppState>>) -> Response {
 
     let sse_client = sse_client(&state.http_client);
 
-    let resp = match sse_client
-        .get(format!("{}/api/ai/stream", state.sim_service_url))
-        .send()
-        .await
-    {
+    let req = sse_client.get(format!("{}/api/ai/stream", state.sim_service_url));
+    let resp = match attach_service_auth(req, &state).send().await {
         Ok(resp) => resp,
         Err(e) => {
             warn!("[PROXY] Failed to connect to sim-service AI stream: {e}");
-            return (
-                StatusCode::SERVICE_UNAVAILABLE,
-                format!(r#"{{"error": "sim-service unavailable: {e}"}}"#),
-            )
-                .into_response();
+            return service_unavailable_response();
         }
     };
 
@@ -936,14 +989,12 @@ async fn read_bounded_text_sim(mut response: reqwest::Response, max_bytes: usize
     String::from_utf8(buf).unwrap_or_default()
 }
 
-async fn proxy_get(state: Arc<AppState>, path: &str) -> impl IntoResponse {
-    match state
+async fn proxy_get(state: Arc<AppState>, path: &str) -> Response {
+    let req = state
         .http_client
         .get(format!("{}{}", state.sim_service_url, path))
-        .timeout(PROXY_TIMEOUT)
-        .send()
-        .await
-    {
+        .timeout(PROXY_TIMEOUT);
+    match attach_service_auth(req, &state).send().await {
         Ok(resp) => {
             let status = resp.status();
             let body = read_bounded_text_sim(resp, MAX_BODY_SIZE).await;
@@ -955,23 +1006,17 @@ async fn proxy_get(state: Arc<AppState>, path: &str) -> impl IntoResponse {
         }
         Err(e) => {
             warn!("sim-service error: {e}");
-            (
-                StatusCode::SERVICE_UNAVAILABLE,
-                format!(r#"{{"error": "sim-service unavailable: {e}"}}"#),
-            )
-                .into_response()
+            service_unavailable_response()
         }
     }
 }
 
-async fn proxy_post(state: Arc<AppState>, path: &str) -> impl IntoResponse {
-    match state
+async fn proxy_post(state: Arc<AppState>, path: &str) -> Response {
+    let req = state
         .http_client
         .post(format!("{}{}", state.sim_service_url, path))
-        .timeout(PROXY_TIMEOUT)
-        .send()
-        .await
-    {
+        .timeout(PROXY_TIMEOUT);
+    match attach_service_auth(req, &state).send().await {
         Ok(resp) => {
             let status = resp.status();
             let body = read_bounded_text_sim(resp, MAX_BODY_SIZE).await;
@@ -983,38 +1028,31 @@ async fn proxy_post(state: Arc<AppState>, path: &str) -> impl IntoResponse {
         }
         Err(e) => {
             warn!("sim-service error: {e}");
-            (
-                // TAG: surface=simulation owner=research-team rule=SIM-001
-                StatusCode::SERVICE_UNAVAILABLE,
-                format!(r#"{{"error": "sim-service unavailable: {e}"}}"#),
-            )
-                .into_response()
+            service_unavailable_response()
         }
     }
 }
 
-async fn proxy_post_body(state: Arc<AppState>, path: &str, body: Body) -> impl IntoResponse {
+async fn proxy_post_body(state: Arc<AppState>, path: &str, body: Body) -> Response {
     let body_bytes = match axum::body::to_bytes(body, MAX_BODY_SIZE).await {
         Ok(bytes) => bytes,
         Err(e) => {
             warn!("Failed to read request body: {e}");
             return (
                 StatusCode::BAD_REQUEST,
-                format!(r#"{{"error": "Invalid request body: {e}"}}"#),
+                Json(serde_json::json!({"error": "Invalid request body"})),
             )
                 .into_response();
         }
     };
 
-    match state
+    let req = state
         .http_client
         .post(format!("{}{}", state.sim_service_url, path))
         .header("Content-Type", "application/json")
         .body(body_bytes)
-        .timeout(PROXY_TIMEOUT)
-        .send()
-        .await
-    {
+        .timeout(PROXY_TIMEOUT);
+    match attach_service_auth(req, &state).send().await {
         Ok(resp) => {
             let status = resp.status();
             let body = read_bounded_text_sim(resp, MAX_BODY_SIZE).await;
@@ -1026,24 +1064,18 @@ async fn proxy_post_body(state: Arc<AppState>, path: &str, body: Body) -> impl I
         }
         Err(e) => {
             warn!("sim-service error: {e}");
-            (
-                StatusCode::SERVICE_UNAVAILABLE,
-                format!(r#"{{"error": "sim-service unavailable: {e}"}}"#),
-            )
-                .into_response()
+            service_unavailable_response()
         }
     }
     // TAG: surface=simulation owner=research-team rule=SIM-001
 }
 
-async fn proxy_post_empty(state: Arc<AppState>, path: &str) -> impl IntoResponse {
-    match state
+async fn proxy_post_empty(state: Arc<AppState>, path: &str) -> Response {
+    let req = state
         .http_client
         .post(format!("{}{}", state.sim_service_url, path))
-        .timeout(PROXY_TIMEOUT)
-        .send()
-        .await
-    {
+        .timeout(PROXY_TIMEOUT);
+    match attach_service_auth(req, &state).send().await {
         Ok(resp) => {
             let status = resp.status();
             let body = read_bounded_text_sim(resp, MAX_BODY_SIZE).await;
@@ -1055,11 +1087,7 @@ async fn proxy_post_empty(state: Arc<AppState>, path: &str) -> impl IntoResponse
         }
         Err(e) => {
             warn!("sim-service error: {e}");
-            (
-                StatusCode::SERVICE_UNAVAILABLE,
-                format!(r#"{{"error": "sim-service unavailable: {e}"}}"#),
-            )
-                .into_response()
+            service_unavailable_response()
         }
     }
 }

@@ -19,6 +19,23 @@ use crate::jobs::{Job, JobStatus, JobStore};
 const MAX_CONCURRENT_RUNNERS: usize = 4;
 const RUNNER_TIMEOUT_SECS: u64 = 120;
 
+const SENSITIVE_CHILD_ENV_KEYS: &[&str] = &[
+    "GEMINI_API_KEY",
+    "SIM_SERVICE_API_KEY",
+    "BRIDGE_API_KEY",
+    "API_KEY",
+    "JWT_SECRET",
+    "DATABASE_URL",
+    "TURSO_AUTH_TOKEN",
+    "FRESHCREDIT_TOKEN_ENCRYPTION_KEY",
+];
+
+fn scrub_sensitive_env(cmd: &mut Command) {
+    for key in SENSITIVE_CHILD_ENV_KEYS {
+        cmd.env_remove(key);
+    }
+}
+
 fn runner_semaphore() -> &'static Semaphore {
     static SEM: OnceLock<Semaphore> = OnceLock::new();
     SEM.get_or_init(|| Semaphore::new(MAX_CONCURRENT_RUNNERS))
@@ -68,6 +85,7 @@ pub async fn execute_job(job: Job, store: Arc<JobStore>, config: ExecutorConfig)
 
     // Build command arguments
     let mut cmd = Command::new(&config.sim_runner_path);
+    scrub_sensitive_env(&mut cmd);
     cmd.kill_on_drop(true);
     cmd.arg("run")
         .arg("--agents")
@@ -243,6 +261,7 @@ pub async fn execute_experiment(
 
     // Build command arguments for experiment
     let mut cmd = Command::new(&config.sim_runner_path);
+    scrub_sensitive_env(&mut cmd);
     cmd.kill_on_drop(true);
     cmd.arg("experiment")
         .arg(&experiment_id)

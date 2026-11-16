@@ -39,6 +39,7 @@ pub struct Args {
 #[derive(Clone)]
 pub struct AppState {
     pub sim_service_url: String,
+    pub sim_service_api_key: Option<String>,
     pub http_client: reqwest::Client,
 }
 
@@ -120,6 +121,7 @@ mod tests {
     fn test_app_state_creation() {
         let state = AppState {
             sim_service_url: "http://test:8080".to_string(),
+            sim_service_api_key: None,
             http_client: reqwest::Client::new(),
         };
         assert_eq!(state.sim_service_url, "http://test:8080");

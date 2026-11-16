@@ -46,6 +46,9 @@ pub struct ExportQuery {
 pub async fn export_results(
     Query(query): Query<ExportQuery>,
 ) -> Result<impl IntoResponse, StatusCode> {
+    if !crate::artifacts::ArtifactStore::is_valid_run_id(&query.experiment_id) {
+        return Err(StatusCode::BAD_REQUEST);
+    }
     // Generate synthetic data for demo
     let data = generate_sample_data(&query.experiment_id);
 
@@ -53,6 +56,21 @@ pub async fn export_results(
         ExportFormat::Csv => Ok(export_csv(&data, &query)),
         ExportFormat::Json => export_json(&data, &query),
         ExportFormat::Parquet => export_parquet(&data, &query),
+    }
+}
+
+const MAX_BATCH_EXPORT_IDS: usize = 50;
+
+fn csv_escape(cell: &str) -> String {
+    let formula_prefixed = if cell.starts_with(['=', '+', '-', '@', '\t', '\r']) {
+        format!("'{cell}")
+    } else {
+        cell.to_string()
+    };
+    if formula_prefixed.contains([',', '"', '\n', '\r']) {
+        format!("\"{}\"", formula_prefixed.replace('"', "\"\""))
+    } else {
+        formula_prefixed
     }
 }
 
@@ -64,6 +82,15 @@ pub async fn export_results(
 pub async fn export_batch(
     Json(request): Json<BatchExportRequest>,
 ) -> Result<impl IntoResponse, StatusCode> {
+    if request.experiment_ids.is_empty()
+        || request.experiment_ids.len() > MAX_BATCH_EXPORT_IDS
+        || request
+            .experiment_ids
+            .iter()
+            .any(|id| !crate::artifacts::ArtifactStore::is_valid_run_id(id))
+    {
+        return Err(StatusCode::BAD_REQUEST);
+    }
     let mut combined_data = Vec::new();
 
     for exp_id in &request.experiment_ids {
@@ -150,7 +177,10 @@ fn export_csv(
 
         csv.push_str(&format!(
             "{},{},{},{}\n",
-            row.timestamp, row.metric, row.value, row.agent_id
+            row.timestamp,
+            csv_escape(&row.metric),
+            row.value,
+            row.agent_id
         ));
     }
 
@@ -258,10 +288,15 @@ fn generate_batch_csv(data: &[(String, Vec<MetricRow>)]) -> String {
     let mut csv = String::from("experiment_id,timestamp,metric,value,agent_id\n");
 
     for (exp_id, rows) in data {
+        let escaped_id = csv_escape(exp_id);
         for row in rows {
             csv.push_str(&format!(
                 "{},{},{},{},{}\n",
-                exp_id, row.timestamp, row.metric, row.value, row.agent_id
+                escaped_id,
+                row.timestamp,
+                csv_escape(&row.metric),
+                row.value,
+                row.agent_id
             ));
         }
     }

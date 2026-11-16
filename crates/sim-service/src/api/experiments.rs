@@ -245,7 +245,7 @@ pub async fn launch_experiment(
     // Generate run ID
     let run_id = uuid::Uuid::new_v4().to_string();
 
-    // Use request parameters or experiment defaults
+    // Use request parameters or experiment defaults, strictly validated against schema caps
     let agents = req.agents.unwrap_or(exp.default_config.agents);
     let ticks = req.ticks.unwrap_or(exp.default_config.ticks);
     let replications = req.replications.unwrap_or(exp.default_config.replications);
@@ -254,6 +254,20 @@ pub async fn launch_experiment(
     let pde4b_variance = req
         .pde4b_variance
         .unwrap_or_else(|| exp.default_config.pde4b_variance.clone());
+
+    if !(1..=100_000).contains(&agents)
+        || !(10..=10_000).contains(&ticks)
+        || !(1..=10_000).contains(&replications)
+        || !matches!(pde4b_variance.as_str(), "zero" | "low" | "medium" | "high")
+    {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": "Parameter out of bounds (agents: 1..=100000, ticks: 10..=10000, replications: 1..=10000, pde4b_variance: zero|low|medium|high)"
+            })),
+        )
+            .into_response();
+    }
 
     info!(
         "Launching experiment: {} (run: {}), agents={}, ticks={}, reps={}, seed={}",
@@ -282,24 +296,26 @@ pub async fn launch_experiment(
 }
 
 // TAG: surface=simulation owner=research-team rule=SIM-001
-/// GET /api/experiment-runs/:id - Get real run status from artifacts directory
-pub async fn get_run_status(Path(run_id): Path<String>) -> impl IntoResponse {
-    let output_dir = std::path::PathBuf::from("./artifacts").join(&run_id);
-    let mut manifest_path = output_dir.join("manifest.json");
-    if !manifest_path.exists() && output_dir.exists() {
-        if let Ok(entries) = std::fs::read_dir(&output_dir) {
-            for entry in entries.flatten() {
-                let p = entry.path();
-                if p.extension().is_some_and(|ext| ext == "json") {
-                    manifest_path = p;
-                    break;
-                }
-            }
-        }
+/// GET /api/experiment-runs/:id - Get real run status from artifacts directory (path-traversal guarded)
+pub async fn get_run_status(
+    State(config): State<Arc<ExecutorConfig>>,
+    Path(run_id): Path<String>,
+) -> impl IntoResponse {
+    if !crate::artifacts::ArtifactStore::is_valid_run_id(&run_id) {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": "Invalid run_id format"
+            })),
+        )
+            .into_response();
     }
 
-    if manifest_path.exists() {
-        let manifest_content = std::fs::read_to_string(&manifest_path).ok();
+    let output_dir = config.artifacts_dir.join(&run_id);
+    let manifest_path = output_dir.join("manifest.json");
+
+    if tokio::fs::try_exists(&manifest_path).await.unwrap_or(false) {
+        let manifest_content = tokio::fs::read_to_string(&manifest_path).await.ok();
         let manifest_val: Option<serde_json::Value> =
             manifest_content.and_then(|s| serde_json::from_str(&s).ok());
         Json(serde_json::json!({
@@ -308,13 +324,15 @@ pub async fn get_run_status(Path(run_id): Path<String>) -> impl IntoResponse {
             "progress": 1.0,
             "manifest": manifest_val,
         }))
-    } else if output_dir.exists() {
+        .into_response()
+    } else if tokio::fs::try_exists(&output_dir).await.unwrap_or(false) {
         Json(serde_json::json!({
             "run_id": run_id,
             "status": "running",
             "progress": 0.5,
             "message": "Experiment execution in progress"
         }))
+        .into_response()
     } else {
         Json(serde_json::json!({
             "run_id": run_id,
@@ -322,6 +340,7 @@ pub async fn get_run_status(Path(run_id): Path<String>) -> impl IntoResponse {
             "progress": 0.1,
             "message": "Experiment queued or starting"
         }))
+        .into_response()
     }
 }
 
@@ -382,5 +401,42 @@ mod tests {
         let exp = exp.unwrap();
         assert_eq!(exp.paper, "GTT");
         assert!(exp.gap_ids.contains(&"GTT-P0-1".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_get_run_status_rejects_traversal_and_launch_enforces_bounds() {
+        use axum::body::Body;
+        use axum::http::Request;
+        use tower::ServiceExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let app = crate::router::create_router(dir.path().to_path_buf());
+
+        let traversal_resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/experiment-runs/..%2F..")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(traversal_resp.status(), StatusCode::BAD_REQUEST);
+
+        let oob_resp = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/experiments/lambda-universality/runs")
+                    .header("Content-Type", "application/json")
+                    .body(Body::from(
+                        r#"{"agents":999999999,"ticks":100,"replications":1}"#,
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(oob_resp.status(), StatusCode::BAD_REQUEST);
     }
 }
