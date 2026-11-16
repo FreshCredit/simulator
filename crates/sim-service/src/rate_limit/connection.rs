@@ -101,6 +101,14 @@ impl ConnectionLimiter {
             self.window
         );
 
+        // Prune expired IP entries when map grows large to keep memory bounded
+        if attempts.len() >= 10_000 {
+            attempts.retain(|_, timestamps| {
+                timestamps.retain(|&t| window_start.is_none_or(|start| t > start));
+                !timestamps.is_empty()
+            });
+        }
+
         true
     }
 

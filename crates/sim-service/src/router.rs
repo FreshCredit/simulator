@@ -922,10 +922,14 @@ fn build_docas_routes() -> Router {
 
 /// Builds the `ws_routes` router.
 fn build_ws_routes() -> Router {
-    // WebSocket routes (P1-API-2: Real-time streaming)
+    // WebSocket routes (P1-API-2: Real-time streaming with bounded per-IP connection rate limiting)
+    let ws_limiter = Arc::new(crate::rate_limit::connection::ConnectionLimiter::new(
+        20, 60,
+    ));
     Router::new()
         .route("/ws/experiments/:exp_id", get(experiment_websocket))
         .route("/ws/batch/:batch_id", get(batch_websocket))
+        .with_state(ws_limiter)
 }
 
 /// Health check endpoint

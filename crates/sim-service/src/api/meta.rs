@@ -18,10 +18,15 @@ use crate::validation::meta::{
 pub async fn run_meta_analysis(
     Json(request): Json<RunMetaAnalysisRequest>,
 ) -> Result<Json<MetaAnalysisResult>, StatusCode> {
-    let analyzer = MetaAnalyzer::new(request.config);
-    let result = analyzer.analyze(&request.studies);
-
-    Ok(Json(result))
+    if request.studies.len() > 5_000 {
+        return Err(StatusCode::PAYLOAD_TOO_LARGE);
+    }
+    tokio::task::spawn_blocking(move || {
+        let analyzer = MetaAnalyzer::new(request.config);
+        Json(analyzer.analyze(&request.studies))
+    })
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
 // TAG: surface=simulation owner=research-team rule=SIM-001
@@ -32,11 +37,20 @@ pub async fn run_meta_analysis(
 pub async fn compare_simulation_empirical(
     Json(request): Json<SimulationEmpiricalRequest>,
 ) -> Result<Json<SimulationEmpiricalComparison>, StatusCode> {
-    let analyzer = MetaAnalyzer::new(MetaAnalysisConfig::default());
-    let result = analyzer
-        .compare_simulation_empirical(&request.empirical_studies, &request.simulation_studies);
-
-    Ok(Json(result))
+    if request.empirical_studies.len() > 5_000 || request.simulation_studies.len() > 5_000 {
+        return Err(StatusCode::PAYLOAD_TOO_LARGE);
+    }
+    tokio::task::spawn_blocking(move || {
+        let analyzer = MetaAnalyzer::new(MetaAnalysisConfig::default());
+        Json(
+            analyzer.compare_simulation_empirical(
+                &request.empirical_studies,
+                &request.simulation_studies,
+            ),
+        )
+    })
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
 /// Generate forest plot data

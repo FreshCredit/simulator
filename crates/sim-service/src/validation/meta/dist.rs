@@ -153,7 +153,7 @@ pub fn student_t_cdf(t: f64, df: f64) -> f64 {
     if !df.is_finite() || df <= 0.0 {
         return 0.5;
     }
-    if df >= 30.0 {
+    if df >= 1000.0 {
         return normal_cdf(t);
     }
     let nu = (df.round() as usize).max(1);
@@ -175,7 +175,7 @@ pub fn student_t_quantile(p: f64, df: f64) -> f64 {
         return 0.0;
     }
     let p_clamped = p.clamp(1e-9, 1.0 - 1e-9);
-    if df >= 30.0 {
+    if df >= 1000.0 {
         return normal_quantile(p_clamped);
     }
     let nu = (df.round() as usize).max(1);
@@ -254,5 +254,17 @@ mod tests {
         assert!((normal_cdf(0.0) - 0.5).abs() < 1e-6);
         assert!((normal_quantile(0.5) - 0.0).abs() < 1e-6);
         assert!((z_critical(0.95) - 1.96).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_student_t_quantile_no_cliff_at_df_30() {
+        // Exact Student-t(df=30) 97.5th percentile is 2.042272 (previously clipped to 1.960 at df>=30)
+        let t30 = student_t_quantile(0.975, 30.0);
+        assert!((t30 - 2.042272).abs() < 1e-4, "got t30={t30}");
+
+        // Smooth monotone convergence toward z=1.96 as df increases
+        let t60 = student_t_quantile(0.975, 60.0);
+        let t120 = student_t_quantile(0.975, 120.0);
+        assert!(t30 > t60 && t60 > t120 && t120 > 1.97);
     }
 }

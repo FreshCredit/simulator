@@ -20,18 +20,29 @@ use crate::validation::cross_validation::{
 pub async fn run_cross_validation(
     Json(request): Json<RunCrossValidationRequest>,
 ) -> Result<Json<CrossValidationResult>, StatusCode> {
-    let validator = CrossValidator::new(request.config.clone());
+    if request.features.is_empty()
+        || request.features.len() != request.target.len()
+        || request.metrics.is_empty()
+    {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    if request.features.len() > 10_000 || request.metrics.len() > 16 {
+        return Err(StatusCode::PAYLOAD_TOO_LARGE);
+    }
 
-    // For demo, use simple dataset
-    let dataset = Dataset {
-        features: request.features,
-        target: request.target,
-        sample_weights: None,
-        groups: request.groups,
-        stratify: request.stratify,
-    };
-
-    let result = validator.validate(&dataset, &|| BaselineModel::new(), &request.metrics);
+    let result = tokio::task::spawn_blocking(move || {
+        let validator = CrossValidator::new(request.config);
+        let dataset = Dataset {
+            features: request.features,
+            target: request.target,
+            sample_weights: None,
+            groups: request.groups,
+            stratify: request.stratify,
+        };
+        validator.validate(&dataset, &BaselineModel::new, &request.metrics)
+    })
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(Json(result))
 }
@@ -177,28 +188,35 @@ pub async fn list_metrics() -> Result<Json<MetricsResponse>, StatusCode> {
 pub async fn learning_curve(
     Json(request): Json<LearningCurveRequest>,
 ) -> Result<Json<LearningCurveResponse>, StatusCode> {
-    let config = CrossValidationConfig::default();
-    let validator = CrossValidator::new(config);
+    if request.features.is_empty() || request.features.len() != request.target.len() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    if request.features.len() > 10_000 || request.train_sizes.len() > 32 {
+        return Err(StatusCode::PAYLOAD_TOO_LARGE);
+    }
 
-    let dataset = Dataset {
-        features: request.features,
-        target: request.target,
-        sample_weights: None,
-        groups: None,
-        stratify: None,
-    };
+    let metric = request.metric.clone();
+    let curve = tokio::task::spawn_blocking(move || {
+        let config = CrossValidationConfig::default();
+        let validator = CrossValidator::new(config);
+        let dataset = Dataset {
+            features: request.features,
+            target: request.target,
+            sample_weights: None,
+            groups: None,
+            stratify: None,
+        };
+        validator.learning_curve(
+            &dataset,
+            &BaselineModel::new,
+            &request.metric,
+            &request.train_sizes,
+        )
+    })
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let curve = validator.learning_curve(
-        &dataset,
-        &|| BaselineModel::new(),
-        &request.metric,
-        &request.train_sizes,
-    );
-
-    Ok(Json(LearningCurveResponse {
-        curve,
-        metric: request.metric,
-    }))
+    Ok(Json(LearningCurveResponse { curve, metric }))
 }
 
 // TAG: surface=simulation owner=research-team rule=SIM-001
@@ -209,80 +227,88 @@ pub async fn learning_curve(
 pub async fn compare_models(
     Json(request): Json<CompareModelsRequest>,
 ) -> Result<Json<ModelComparisonResult>, StatusCode> {
-    if request.models.is_empty() || request.metrics.is_empty() {
+    if request.models.is_empty()
+        || request.metrics.is_empty()
+        || request.features.is_empty()
+        || request.features.len() != request.target.len()
+    {
         return Err(StatusCode::BAD_REQUEST);
     }
+    if request.features.len() > 10_000 || request.models.len() > 16 || request.metrics.len() > 16 {
+        return Err(StatusCode::PAYLOAD_TOO_LARGE);
+    }
 
-    let mut results = HashMap::new();
-
-    // For demo, just run baseline multiple times with different configs
-    for model_name in &request.models {
-        let validator = CrossValidator::new(request.config.clone());
-
+    tokio::task::spawn_blocking(move || {
+        let mut results = HashMap::new();
         let dataset = Dataset {
-            features: request.features.clone(),
-            target: request.target.clone(),
+            features: request.features,
+            target: request.target,
             sample_weights: None,
             groups: None,
             stratify: None,
         };
 
-        let result = validator.validate(&dataset, &|| BaselineModel::new(), &request.metrics);
-        results.insert(model_name.clone(), result);
-    }
+        for model_name in &request.models {
+            let validator = CrossValidator::new(request.config.clone());
+            let result = validator.validate(&dataset, &BaselineModel::new, &request.metrics);
+            results.insert(model_name.clone(), result);
+        }
 
-    // Rank models by primary metric
-    let primary_metric = request.metrics[0].clone();
-    let higher_is_better = create_metric(&primary_metric).higher_is_better();
+        // Rank models by primary metric
+        let primary_metric = request.metrics[0].clone();
+        let higher_is_better = create_metric(&primary_metric).higher_is_better();
 
-    // TAG: surface=simulation owner=platform-team rule=GENERAL-001
-    let mut rankings: Vec<_> = results
-        .iter()
-        .map(|(name, result)| {
-            let mean_score = *result
-                .aggregated_metrics
-                .mean
-                .get(&primary_metric)
-                .unwrap_or(&0.0);
-            let std_score = *result
-                .aggregated_metrics
-                .std
-                .get(&primary_metric)
-                .unwrap_or(&0.0);
-            (name.clone(), mean_score, std_score)
+        // TAG: surface=simulation owner=platform-team rule=GENERAL-001
+        let mut rankings: Vec<_> = results
+            .iter()
+            .map(|(name, result)| {
+                let mean_score = *result
+                    .aggregated_metrics
+                    .mean
+                    .get(&primary_metric)
+                    .unwrap_or(&0.0);
+                let std_score = *result
+                    .aggregated_metrics
+                    .std
+                    .get(&primary_metric)
+                    .unwrap_or(&0.0);
+                (name.clone(), mean_score, std_score)
+            })
+            .collect();
+
+        // Sort by score (descending if higher is better) with deterministic name tie-breaker
+        rankings.sort_by(|a, b| {
+            let cmp = if higher_is_better {
+                b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal)
+            } else {
+                a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal)
+            };
+            cmp.then_with(|| a.0.cmp(&b.0))
+        });
+
+        // TAG: surface=simulation owner=research-team rule=SIM-001
+        let best_model = rankings.first().map(|r| r.0.clone()).unwrap_or_default();
+
+        let rankings: Vec<ModelRankingInfo> = rankings
+            .into_iter()
+            .enumerate()
+            .map(|(i, (model, mean, std))| ModelRankingInfo {
+                model,
+                rank: i + 1,
+                mean_score: mean,
+                std_score: std,
+            })
+            .collect();
+
+        Json(ModelComparisonResult {
+            results,
+            rankings,
+            best_model,
+            primary_metric,
         })
-        .collect();
-
-    // Sort by score (descending if higher is better) with deterministic name tie-breaker
-    rankings.sort_by(|a, b| {
-        let cmp = if higher_is_better {
-            b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal)
-        } else {
-            a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal)
-        };
-        cmp.then_with(|| a.0.cmp(&b.0))
-    });
-
-    // TAG: surface=simulation owner=research-team rule=SIM-001
-    let best_model = rankings.first().map(|r| r.0.clone()).unwrap_or_default();
-
-    let rankings: Vec<ModelRankingInfo> = rankings
-        .into_iter()
-        .enumerate()
-        .map(|(i, (model, mean, std))| ModelRankingInfo {
-            model,
-            rank: i + 1,
-            mean_score: mean,
-            std_score: std,
-        })
-        .collect();
-
-    Ok(Json(ModelComparisonResult {
-        results,
-        rankings,
-        best_model,
-        primary_metric,
-    }))
+    })
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
 // TAG: surface=simulation owner=research-team rule=SIM-001

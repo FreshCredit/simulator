@@ -10,11 +10,42 @@
 //! | `/ws/batch/:batch_id` | Subscribe to batch experiment updates |
 
 use axum::{
-    extract::{Path, WebSocketUpgrade},
+    extract::{ConnectInfo, Path, State, WebSocketUpgrade},
+    http::{HeaderMap, StatusCode},
     response::IntoResponse,
 };
 use serde::{Deserialize, Serialize};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::sync::Arc;
 use tracing::{error, info, warn};
+
+use crate::rate_limit::connection::ConnectionLimiter;
+
+const MAX_WS_MESSAGE_BYTES: usize = 64 * 1024;
+const MAX_WS_FRAME_BYTES: usize = 16 * 1024;
+const MAX_WS_WRITE_BUFFER_BYTES: usize = 256 * 1024;
+
+fn extract_ws_client_ip(headers: &HeaderMap, peer: Option<ConnectInfo<SocketAddr>>) -> IpAddr {
+    let peer_ip = peer.map(|ci| ci.0.ip());
+    let behind_proxy = peer_ip.is_none_or(|ip| ip.is_loopback())
+        || std::env::var("TRUST_PROXY_HEADERS")
+            .is_ok_and(|v| v == "1" || v.eq_ignore_ascii_case("true"));
+    if behind_proxy {
+        if let Some(xff_ip) = headers
+            .get("x-forwarded-for")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| {
+                s.split(',')
+                    .rev()
+                    .map(str::trim)
+                    .find_map(|entry| entry.parse::<IpAddr>().ok())
+            })
+        {
+            return xff_ip;
+        }
+    }
+    peer_ip.unwrap_or(IpAddr::V4(Ipv4Addr::LOCALHOST))
+}
 
 // TAG: surface=simulation owner=research-team rule=SIM-001
 /// WebSocket message types
@@ -118,12 +149,22 @@ pub struct WsConnection {
 
 /// GET /ws/experiments/:id - WebSocket endpoint for experiment progress
 pub async fn experiment_websocket(
+    State(limiter): State<Arc<ConnectionLimiter>>,
+    headers: HeaderMap,
+    peer: Option<ConnectInfo<SocketAddr>>,
     Path(experiment_id): Path<String>,
     ws: WebSocketUpgrade,
 ) -> impl IntoResponse {
+    let ip = extract_ws_client_ip(&headers, peer);
+    if !limiter.check(ip).await {
+        return StatusCode::TOO_MANY_REQUESTS.into_response();
+    }
     info!(experiment_id = %experiment_id, "WebSocket connection requested for experiment");
 
-    ws.on_upgrade(move |socket| handle_experiment_socket(socket, experiment_id))
+    ws.max_message_size(MAX_WS_MESSAGE_BYTES)
+        .max_frame_size(MAX_WS_FRAME_BYTES)
+        .max_write_buffer_size(MAX_WS_WRITE_BUFFER_BYTES)
+        .on_upgrade(move |socket| handle_experiment_socket(socket, experiment_id))
 }
 
 /// Handle experiment WebSocket connection
@@ -224,13 +265,23 @@ async fn handle_experiment_socket(mut socket: axum::extract::ws::WebSocket, expe
 // TAG: surface=simulation owner=research-team rule=SIM-001
 /// GET /`ws/batch/:batch_id` - WebSocket endpoint for batch updates
 pub async fn batch_websocket(
+    State(limiter): State<Arc<ConnectionLimiter>>,
+    headers: HeaderMap,
+    peer: Option<ConnectInfo<SocketAddr>>,
     Path(batch_id): Path<String>,
     ws: WebSocketUpgrade,
     // TAG: surface=simulation owner=research-team rule=SIM-001
 ) -> impl IntoResponse {
+    let ip = extract_ws_client_ip(&headers, peer);
+    if !limiter.check(ip).await {
+        return StatusCode::TOO_MANY_REQUESTS.into_response();
+    }
     info!(batch_id = %batch_id, "WebSocket connection requested for batch");
 
-    ws.on_upgrade(move |socket| handle_batch_socket(socket, batch_id))
+    ws.max_message_size(MAX_WS_MESSAGE_BYTES)
+        .max_frame_size(MAX_WS_FRAME_BYTES)
+        .max_write_buffer_size(MAX_WS_WRITE_BUFFER_BYTES)
+        .on_upgrade(move |socket| handle_batch_socket(socket, batch_id))
 }
 
 /// Handle batch WebSocket connection
