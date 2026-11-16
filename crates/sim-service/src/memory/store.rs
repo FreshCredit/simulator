@@ -66,7 +66,11 @@ impl MemoryStore {
             entry.importance = importance;
         }
         if let Some(valence) = request.emotional_valence {
-            entry.emotional_valence = valence.clamp(-1.0, 1.0);
+            entry.emotional_valence = if valence.is_finite() {
+                valence.clamp(-1.0, 1.0)
+            } else {
+                0.0
+            };
         }
         if let Some(tags) = request.tags {
             entry.tags = tags;
@@ -78,9 +82,19 @@ impl MemoryStore {
         let memory_id = entry.id.clone();
         let agent_id = entry.agent_id.clone();
 
-        // Store the memory
+        // Store the memory with bounded capacity eviction
+        const MAX_MEMORIES: usize = 10_000;
         {
             let mut memories = self.memories.write().await;
+            if memories.len() >= MAX_MEMORIES {
+                if let Some(oldest_id) = memories
+                    .iter()
+                    .min_by_key(|(_, m)| m.tick)
+                    .map(|(k, _)| k.clone())
+                {
+                    memories.remove(&oldest_id);
+                }
+            }
             memories.insert(memory_id.clone(), entry);
         }
 

@@ -127,8 +127,12 @@ pub async fn store_memory(
     State(state): State<MemoryState>,
     Json(request): Json<StoreMemoryRequest>,
 ) -> Result<(StatusCode, Json<StoreMemoryResponse>), StatusCode> {
+    let agent_id = request.agent_id.clone();
+    if agent_id.trim().is_empty() || agent_id.len() > 128 {
+        return Err(StatusCode::BAD_REQUEST);
+    }
     debug!(
-        agent_id = %request.agent_id,
+        agent_id = %agent_id,
         memory_type = ?request.memory_type,
         "Storing memory"
     );
@@ -138,8 +142,8 @@ pub async fn store_memory(
     Ok((
         StatusCode::CREATED,
         Json(StoreMemoryResponse {
-            memory_id: memory_id.clone(),
-            agent_id: memory_id, // This should come from request, but we need to return it
+            memory_id,
+            agent_id,
             stored: true,
         }),
     ))
@@ -162,7 +166,7 @@ pub async fn query_memories(
         from_tick: query.from_tick,
         to_tick: query.to_tick,
         content_search: query.content_search,
-        limit: query.limit.unwrap_or(50),
+        limit: query.limit.unwrap_or(50).clamp(1, 500),
         offset: 0,
         sort_by_recency: true,
     };
@@ -443,5 +447,36 @@ mod tests {
         let state = test_memory_state();
         let response = consolidate_memories(State(state), Path("agent1".to_string())).await;
         assert_eq!(response.unwrap_err(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn test_store_memory_returns_real_agent_id_and_sanitizes_nan_valence() {
+        use crate::memory::types::{EpisodicMemory, MemoryContent, MemoryImportance, MemoryType};
+
+        let state = test_memory_state();
+        let req = StoreMemoryRequest {
+            agent_id: "agent-42".to_string(),
+            memory_type: MemoryType::Episodic,
+            content: MemoryContent::Episodic(EpisodicMemory {
+                event: "Observed event".to_string(),
+                location: None,
+                participants: vec![],
+                sensory_details: Default::default(),
+                narrative: "Observed event".to_string(),
+            }),
+            importance: Some(MemoryImportance::Normal),
+            emotional_valence: Some(f64::NAN),
+            tags: Some(vec!["trust".to_string()]),
+            tick: 5,
+            source: None,
+        };
+        let (status, Json(resp)) = store_memory(State(state.clone()), Json(req)).await.unwrap();
+        assert_eq!(status, StatusCode::CREATED);
+        assert_eq!(resp.agent_id, "agent-42");
+        assert_ne!(resp.agent_id, resp.memory_id);
+
+        let stored = state.store.get(&resp.memory_id).await.unwrap();
+        assert!(stored.emotional_valence.is_finite());
+        assert_eq!(stored.emotional_valence, 0.0);
     }
 }

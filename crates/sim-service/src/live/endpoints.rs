@@ -370,8 +370,8 @@ pub async fn restart(
         docas_alpha_base: request
             .docas_alpha_base
             .map(|v| sanitize_f32(Some(v), 0.1, 0.0, 1.0)),
-        trust_curvature_window: request.trust_curvature_window,
-        planning_horizon: request.planning_horizon,
+        trust_curvature_window: request.trust_curvature_window.map(|w| w.clamp(1, 1000)),
+        planning_horizon: request.planning_horizon.map(|h| h.clamp(1, 100)),
         emotion_decay_rate: request
             .emotion_decay_rate
             .map(|v| sanitize_f32(Some(v), 0.05, 0.0, 1.0)),
@@ -393,7 +393,7 @@ pub async fn restart(
         transaction_cost: request
             .transaction_cost
             .map(|v| sanitize_f32(Some(v), 0.01, 0.0, 10.0)),
-        block_time: request.block_time,
+        block_time: request.block_time.map(|b| b.clamp(1, 1000)),
         consensus_threshold: request
             .consensus_threshold
             .map(|v| sanitize_f32(Some(v), 0.67, 0.5, 1.0)),
@@ -422,7 +422,7 @@ pub async fn restart(
         kingman_coalescent: request
             .kingman_coalescent
             .map(|k| sanitize_f32(Some(k), 1.62, 0.01, 10.0)),
-        lineage_depth: request.lineage_depth,
+        lineage_depth: request.lineage_depth.map(|d| d.clamp(1, 1000)),
         music_metric_hierarchy_tau: request
             .music_metric_hierarchy_tau
             .map(|t| sanitize_f32(Some(t), 0.50, 0.0, 1.0)),
@@ -473,7 +473,7 @@ pub async fn restart(
 }
 
 /// Real-time intervention request for live simulation updates
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 pub struct InterventionRequest {
     /// Version 4.0: Optogenetic laser wavelength ("LaserOff", "ChR2Blue470nm", "ArchTYellow566nm")
     #[serde(default)]
@@ -615,32 +615,76 @@ fn build_params_from_intervention(req: InterventionRequest) -> SimulationParams 
         toggles: req.toggles,
         altitude_effects_enabled: req.altitude_effects_enabled,
         weather_enabled: req.weather_enabled,
-        energy_consumption: req.energy_consumption,
-        movement_cost: req.movement_cost,
-        aging_beta: req.aging_beta,
-        repro_threshold: req.repro_threshold,
-        mutation_rate: req.mutation_rate,
-        tax_redistribution_rate: req.tax_redistribution_rate,
-        bank_run_sensitivity: req.bank_run_sensitivity,
-        docas_alpha_base: req.docas_alpha_base,
-        trust_curvature_window: req.trust_curvature_window,
-        trust_decay_rate: req.trust_decay_rate,
-        reputation_threshold: req.reputation_threshold,
-        credit_limit: req.credit_limit,
-        interest_rate_base: req.interest_rate_base,
-        planning_horizon: req.planning_horizon,
-        emotion_decay_rate: req.emotion_decay_rate,
-        worldview_drift_rate: req.worldview_drift_rate,
-        transaction_cost: req.transaction_cost,
-        block_time: req.block_time,
-        consensus_threshold: req.consensus_threshold,
-        epigenetic_methylation_rate: req.epigenetic_methylation_rate,
-        circadian_sleep_deficit: req.circadian_sleep_deficit,
-        kingman_coalescent: req.kingman_coalescent,
-        lineage_depth: req.lineage_depth,
-        music_metric_hierarchy_tau: req.music_metric_hierarchy_tau,
-        language_drift_rate_factor: req.language_drift_rate_factor,
-        language_coherence_threshold: req.language_coherence_threshold,
+        energy_consumption: req
+            .energy_consumption
+            .map(|e| sanitize_f32(Some(e), 1.0, 0.1, 10.0)),
+        movement_cost: req
+            .movement_cost
+            .map(|m| sanitize_f32(Some(m), 0.5, 0.01, 10.0)),
+        aging_beta: req
+            .aging_beta
+            .map(|b| sanitize_f32(Some(b), 0.10, 0.01, 1.0)),
+        repro_threshold: req
+            .repro_threshold
+            .map(|r| sanitize_f32(Some(r), 75.0, 10.0, 500.0)),
+        mutation_rate: req
+            .mutation_rate
+            .map(|m| sanitize_f32(Some(m), 0.001, 0.00001, 0.5)),
+        tax_redistribution_rate: req
+            .tax_redistribution_rate
+            .map(|t| sanitize_f32(Some(t), 0.0, 0.0, 0.50)),
+        bank_run_sensitivity: req
+            .bank_run_sensitivity
+            .map(|b| sanitize_f32(Some(b), 1.0, 0.0, 2.0)),
+        docas_alpha_base: req
+            .docas_alpha_base
+            .map(|v| sanitize_f32(Some(v), 0.1, 0.0, 1.0)),
+        trust_curvature_window: req.trust_curvature_window.map(|w| w.clamp(1, 1000)),
+        trust_decay_rate: req
+            .trust_decay_rate
+            .map(|v| sanitize_f32(Some(v), 0.05, 0.0, 1.0)),
+        reputation_threshold: req
+            .reputation_threshold
+            .map(|v| sanitize_f32(Some(v), 0.5, 0.0, 1.0)),
+        credit_limit: req
+            .credit_limit
+            .map(|v| sanitize_f32(Some(v), 100.0, 0.0, 10000.0)),
+        interest_rate_base: req
+            .interest_rate_base
+            .map(|v| sanitize_f32(Some(v), 0.05, 0.0, 1.0)),
+        planning_horizon: req.planning_horizon.map(|h| h.clamp(1, 100)),
+        emotion_decay_rate: req
+            .emotion_decay_rate
+            .map(|v| sanitize_f32(Some(v), 0.05, 0.0, 1.0)),
+        worldview_drift_rate: req
+            .worldview_drift_rate
+            .map(|v| sanitize_f32(Some(v), 0.05, 0.0, 1.0)),
+        transaction_cost: req
+            .transaction_cost
+            .map(|v| sanitize_f32(Some(v), 0.01, 0.0, 10.0)),
+        block_time: req.block_time.map(|b| b.clamp(1, 1000)),
+        consensus_threshold: req
+            .consensus_threshold
+            .map(|v| sanitize_f32(Some(v), 0.67, 0.5, 1.0)),
+        epigenetic_methylation_rate: req
+            .epigenetic_methylation_rate
+            .map(|e| sanitize_f32(Some(e), 0.05, 0.0, 1.0)),
+        circadian_sleep_deficit: req
+            .circadian_sleep_deficit
+            .map(|c| sanitize_f32(Some(c), 0.0, 0.0, 1.0)),
+        kingman_coalescent: req
+            .kingman_coalescent
+            .map(|k| sanitize_f32(Some(k), 1.62, 0.01, 10.0)),
+        lineage_depth: req.lineage_depth.map(|d| d.clamp(1, 1000)),
+        music_metric_hierarchy_tau: req
+            .music_metric_hierarchy_tau
+            .map(|t| sanitize_f32(Some(t), 0.50, 0.0, 1.0)),
+        language_drift_rate_factor: req
+            .language_drift_rate_factor
+            .map(|d| sanitize_f32(Some(d), 1.0, 0.0, 10.0)),
+        language_coherence_threshold: req
+            .language_coherence_threshold
+            .map(|c| sanitize_f32(Some(c), 0.70, 0.0, 1.0)),
         ..Default::default()
     }
 }
@@ -1032,4 +1076,70 @@ pub async fn get_simulation_report(
 pub struct ReportParams {
     /// max events
     pub max_events: Option<usize>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_intervention_sanitizes_nan_inf_and_extremes() {
+        let req = InterventionRequest {
+            energy_consumption: Some(f32::NAN),
+            movement_cost: Some(f32::INFINITY),
+            aging_beta: Some(-5.0),
+            repro_threshold: Some(1e9),
+            mutation_rate: Some(-1.0),
+            tax_redistribution_rate: Some(2.0),
+            bank_run_sensitivity: Some(f32::NEG_INFINITY),
+            docas_alpha_base: Some(5.0),
+            trust_curvature_window: Some(0),
+            trust_decay_rate: Some(f32::NAN),
+            reputation_threshold: Some(9.0),
+            credit_limit: Some(-100.0),
+            interest_rate_base: Some(3.0),
+            planning_horizon: Some(999_999),
+            emotion_decay_rate: Some(f32::NAN),
+            worldview_drift_rate: Some(-0.5),
+            transaction_cost: Some(999.0),
+            block_time: Some(0),
+            consensus_threshold: Some(0.1),
+            epigenetic_methylation_rate: Some(f32::INFINITY),
+            circadian_sleep_deficit: Some(-1.0),
+            kingman_coalescent: Some(0.0),
+            lineage_depth: Some(999_999),
+            music_metric_hierarchy_tau: Some(f32::NAN),
+            language_drift_rate_factor: Some(100.0),
+            language_coherence_threshold: Some(-2.0),
+            ..Default::default()
+        };
+
+        let params = build_params_from_intervention(req);
+        assert_eq!(params.energy_consumption, Some(1.0));
+        assert_eq!(params.movement_cost, Some(0.5));
+        assert_eq!(params.aging_beta, Some(0.01));
+        assert_eq!(params.repro_threshold, Some(500.0));
+        assert_eq!(params.mutation_rate, Some(0.00001));
+        assert_eq!(params.tax_redistribution_rate, Some(0.50));
+        assert_eq!(params.bank_run_sensitivity, Some(1.0));
+        assert_eq!(params.docas_alpha_base, Some(1.0));
+        assert_eq!(params.trust_curvature_window, Some(1));
+        assert_eq!(params.trust_decay_rate, Some(0.05));
+        assert_eq!(params.reputation_threshold, Some(1.0));
+        assert_eq!(params.credit_limit, Some(0.0));
+        assert_eq!(params.interest_rate_base, Some(1.0));
+        assert_eq!(params.planning_horizon, Some(100));
+        assert_eq!(params.emotion_decay_rate, Some(0.05));
+        assert_eq!(params.worldview_drift_rate, Some(0.0));
+        assert_eq!(params.transaction_cost, Some(10.0));
+        assert_eq!(params.block_time, Some(1));
+        assert_eq!(params.consensus_threshold, Some(0.5));
+        assert_eq!(params.epigenetic_methylation_rate, Some(0.05));
+        assert_eq!(params.circadian_sleep_deficit, Some(0.0));
+        assert_eq!(params.kingman_coalescent, Some(0.01));
+        assert_eq!(params.lineage_depth, Some(1000));
+        assert_eq!(params.music_metric_hierarchy_tau, Some(0.50));
+        assert_eq!(params.language_drift_rate_factor, Some(10.0));
+        assert_eq!(params.language_coherence_threshold, Some(0.0));
+    }
 }
