@@ -1,14 +1,14 @@
 /**
- * CLICS-4 Colexification Graph Visualization
+ * CLICS³ Colexification Graph Visualization
  * 
  * D3.js-based force-directed graph visualization showing the agent's
- * language/lexicon structure based on CLICS-4 (Database of Cross-Linguistic Colexifications v4.0).
+ * language/lexicon structure based on CLICS³ (Database of Cross-Linguistic Colexifications, Rzymski et al. 2020).
  * 
  * Nodes represent concepts/words, edges show colexification patterns
- * (same word used for multiple concepts).
+ * weighted by live cosine similarity in the agent's concept embedding space.
  * 
  * @module CLICSVisualization
- * @version 1.0.0
+ * @version 1.1.0
  */
 
 // ============================================

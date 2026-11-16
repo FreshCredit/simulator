@@ -45,6 +45,7 @@ pub fn cors_layer() -> CorsLayer {
             http::header::CONTENT_TYPE,
             http::header::AUTHORIZATION,
             http::header::ACCEPT,
+            http::HeaderName::from_static("x-api-key"),
         ])
 }
 

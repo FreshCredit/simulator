@@ -195,12 +195,12 @@ impl Default for EmpiricalParameters {
     /// Returns an error if the operation fails.
     fn default() -> Self {
         Self {
-            // Identity & Verification
-            credit_report_error_rate: 0.44,
-            serious_error_rate: 0.145,
-            identity_theft_victim_rate: 0.10, // BJS 2016: 10% annual (corrected from 7.3%)
+            // Identity & Verification (v4.5.0 primary anchors: FTC 2013, BJS 2023, ITRC 2025 restated)
+            credit_report_error_rate: 0.26,
+            serious_error_rate: 0.052,
+            identity_theft_victim_rate: 0.09,
             synthetic_id_detection_rate: 0.05,
-            breach_exposure_rate: 5.12,
+            breach_exposure_rate: 4.02,
             reporting_rate: 0.046,
             attack_vector_infrastructure: 0.68,
             verification_steps: 3,

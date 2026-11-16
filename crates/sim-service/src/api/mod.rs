@@ -249,6 +249,7 @@ pub fn init_enterprise_compliance() {
 
 pub mod analysis;
 pub mod batch;
+pub mod batteries;
 pub mod catalog;
 pub mod cross_paper;
 pub mod cross_validation;

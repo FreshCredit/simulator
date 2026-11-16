@@ -69,15 +69,8 @@ pub struct ImportResponse {
 pub async fn import_dataset(
     Json(_request): Json<ImportRequest>,
 ) -> Result<Json<ImportResponse>, StatusCode> {
-    // Demo implementation - would actually parse data
-    let import_id = format!("import_{}", uuid::Uuid::new_v4());
-
-    Ok(Json(ImportResponse {
-        import_id,
-        status: "completed".to_string(),
-        records_imported: 1000,
-        validation_errors: vec![],
-    }))
+    // Fail closed rather than returning fabricated 1000-record mock success
+    Err(StatusCode::NOT_IMPLEMENTED)
 }
 
 /// Upload file for import (placeholder - multipart not enabled)
@@ -100,24 +93,8 @@ pub async fn upload_dataset() -> Result<Json<ImportResponse>, StatusCode> {
 /// Returns an error if the operation fails.
 pub async fn list_imported_datasets() -> Json<serde_json::Value> {
     Json(serde_json::json!({
-        "datasets": [
-            {
-                "id": "dataset_001",
-                "name": "Trust Game Survey",
-                "data_type": "experimental_data",
-                "records": 500,
-                "imported_at": "2026-02-16T10:00:00Z",
-                "validation_status": "valid"
-            },
-            {
-                "id": "dataset_002",
-                "name": "Economic Indicators 2025",
-                "data_type": "economic_indicators",
-                "records": 120,
-                "imported_at": "2026-02-15T14:30:00Z",
-                "validation_status": "valid"
-            }
-        ]
+        "datasets": [],
+        "not_implemented": true
     }))
 }
 
@@ -126,37 +103,9 @@ pub async fn list_imported_datasets() -> Json<serde_json::Value> {
 ///
 /// Returns an error if the operation fails.
 pub async fn get_dataset(
-    // TAG: surface=simulation owner=platform-team rule=GENERAL-001
-    Query(query): Query<DatasetQuery>,
+    Query(_query): Query<DatasetQuery>,
 ) -> Result<Json<DatasetInfo>, StatusCode> {
-    Ok(Json(DatasetInfo {
-        id: query.dataset_id,
-        name: "Sample Dataset".to_string(),
-        data_type: DataType::ExperimentalData,
-        records: 1000,
-        schema: vec![
-            ColumnInfo {
-                name: "participant_id".to_string(),
-                data_type: "string".to_string(),
-                nullable: false,
-            },
-            ColumnInfo {
-                name: "trust_score".to_string(),
-                data_type: "float".to_string(),
-                nullable: true,
-            },
-            ColumnInfo {
-                name: "cooperation_rate".to_string(),
-                data_type: "float".to_string(),
-                nullable: true,
-            },
-        ],
-        summary: DatasetSummary {
-            completeness: 0.95,
-            numeric_columns: vec!["trust_score".to_string(), "cooperation_rate".to_string()],
-            categorical_columns: vec!["participant_id".to_string()],
-        },
-    }))
+    Err(StatusCode::NOT_IMPLEMENTED)
 }
 
 // TAG: surface=simulation owner=research-team rule=SIM-001
@@ -165,8 +114,7 @@ pub async fn get_dataset(
 ///
 /// Returns an error if the operation fails.
 pub async fn delete_dataset(Query(_query): Query<DatasetQuery>) -> Result<StatusCode, StatusCode> {
-    // Would actually delete from storage
-    Ok(StatusCode::NO_CONTENT)
+    Err(StatusCode::NOT_IMPLEMENTED)
 }
 
 // TAG: surface=simulation owner=research-team rule=SIM-001
@@ -175,25 +123,9 @@ pub async fn delete_dataset(Query(_query): Query<DatasetQuery>) -> Result<Status
 ///
 /// Returns an error if the operation fails.
 pub async fn validate_dataset(
-    Json(request): Json<ValidationRequest>,
+    Json(_request): Json<ValidationRequest>,
 ) -> Result<Json<ValidationResult>, StatusCode> {
-    // Demo validation
-    let errors = if request.dataset_id == "invalid" {
-        vec!["Missing required column: participant_id".to_string()]
-    } else {
-        vec![]
-    };
-
-    Ok(Json(ValidationResult {
-        valid: errors.is_empty(),
-        errors,
-        warnings: vec!["Some values outside expected range".to_string()],
-        stats: ValidationStats {
-            total_records: 1000,
-            valid_records: 995,
-            invalid_records: 5,
-        },
-    }))
+    Err(StatusCode::NOT_IMPLEMENTED)
 }
 
 /// Map dataset to experiment parameters
@@ -201,19 +133,9 @@ pub async fn validate_dataset(
 ///
 /// Returns an error if the operation fails.
 pub async fn map_to_experiment(
-    Json(request): Json<MappingRequest>,
+    Json(_request): Json<MappingRequest>,
 ) -> Result<Json<MappingResult>, StatusCode> {
-    Ok(Json(MappingResult {
-        mapping_id: format!("map_{}", uuid::Uuid::new_v4()),
-        experiment_config: serde_json::json!({
-            "agent_count": 1000,
-            "parameters": {
-                "initial_trust": request.mappings.get("trust_score").copied().unwrap_or(0.5),
-                "cooperation_bias": request.mappings.get("cooperation_rate").copied().unwrap_or(0.5),
-            }
-        }),
-        coverage: 0.85,
-    }))
+    Err(StatusCode::NOT_IMPLEMENTED)
 }
 
 // TAG: surface=simulation owner=research-team rule=SIM-001
@@ -332,6 +254,19 @@ mod tests {
     async fn test_list_imported_datasets() {
         let response = list_imported_datasets().await;
         let datasets = response.0["datasets"].as_array().unwrap();
-        assert_eq!(datasets.len(), 2);
+        assert!(datasets.is_empty());
+        assert_eq!(response.0["not_implemented"], true);
+    }
+
+    #[tokio::test]
+    async fn test_import_returns_not_implemented() {
+        assert_eq!(
+            delete_dataset(Query(DatasetQuery {
+                dataset_id: "x".to_string()
+            }))
+            .await
+            .unwrap_err(),
+            StatusCode::NOT_IMPLEMENTED
+        );
     }
 }

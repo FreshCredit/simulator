@@ -221,8 +221,12 @@ pub fn apply_config_overrides(cfg: &mut SimulationConfig, params: &SimulationPar
         params.weather_shield_enabled,
     );
     if let Some(chi) = params.visual_cloaking_ratio {
+        let semantic_focus = params.brain_it_branch.as_deref() == Some("BranchBSemantic");
         cfg.visual_cloaking =
-            sim_core::visual_cloaking::VisualAgreementStimulus::with_cloaking_ratio(chi);
+            sim_core::visual_cloaking::VisualAgreementStimulus::with_cloaking_and_branch(
+                chi,
+                semantic_focus,
+            );
     }
     if let Some(unconscious) = params.baylor_unconscious_mode {
         cfg.baylor.mode = if unconscious {

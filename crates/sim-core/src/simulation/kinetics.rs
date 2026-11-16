@@ -160,12 +160,12 @@ impl Simulation {
         let mut master_law_config = crate::master_law::MasterLawConfig::for_preset(preset);
 
         if config.docas_alpha_base > 0.0 {
-            master_law_config.s_base = (master_law_config.s_base
-                * (config.docas_alpha_base as f64 * 2.0))
-                .clamp(0.01, 0.99);
+            let gain_scale = (config.docas_alpha_base as f64 * 2.0).clamp(0.1, 4.0);
+            master_law_config.lambda_plus *= gain_scale;
+            master_law_config.lambda_minus *= gain_scale;
         }
         if config.trust_decay_rate > 0.0 {
-            master_law_config.lambda_minus *= 1.0 + config.trust_decay_rate as f64 * 10.0;
+            master_law_config.leak_delta = (config.trust_decay_rate as f64).clamp(0.0, 0.99);
         }
 
         if config.environment.weather_enabled {

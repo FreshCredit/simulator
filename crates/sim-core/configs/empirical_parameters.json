@@ -23,42 +23,43 @@
   },
 
   "identity_verification": {
-    "_comment": "Per §6.21-6.23: Credit report and identity theft statistics",
+    "_comment": "Per v4.5.0 tfp.tex §1.1 & Correction Register #10-#11: Primary federal credit-report and identity-theft anchors",
     "credit_report_error_rate": {
-      "value": 0.44,
-      "range": [0.40, 0.48],
-      "source": "Consumer Reports 2024",
+      "value": 0.26,
+      "range": [0.20, 0.32],
+      "source": "FTC 2013 Section 319 FACT Act Study",
       "confidence": "validated",
-      "citation": "Consumer Reports. (2024). Credit Check Errors."
+      "citation": "Federal Trade Commission. (2013). Report to Congress Under Section 319 of the Fair and Accurate Credit Transactions Act of 2003.",
+      "note": "Nationally representative 26% potentially material error rate (Consumer Reports 2024 44% reflects a self-selected volunteer sample)"
     },
     "serious_error_rate": {
-      "value": 0.145,
-      "range": [0.12, 0.17],
-      "source": "Consumer Reports 2024",
+      "value": 0.052,
+      "range": [0.04, 0.07],
+      "source": "FTC 2013 Section 319 FACT Act Study",
       "confidence": "validated",
-      "note": "~33% of 44% error rate"
+      "note": "5.2% tier-shifting credit error rate across the three nationwide CRAs"
     },
     "identity_theft_victim_rate": {
-      "value": 0.10,
-      "range": [0.08, 0.12],
-      "source": "BJS 2016 (corrected from 7.3%)",
+      "value": 0.09,
+      "range": [0.08, 0.11],
+      "source": "BJS 2023 (23.9M victims age 16+)",
       "confidence": "validated",
-      "citation": "Harrell, E., & Langton, L. (2016). Victims of Identity Theft, 2014. Bureau of Justice Statistics, NCJ 249788.",
-      "note": "Corrected from 7.3% to 10% based on actual BJS 2016 report"
+      "citation": "Harrell, E. (2023). Victims of Identity Theft, 2021. Bureau of Justice Statistics.",
+      "note": "Updated from 2016 BJS report to 2023 BJS release (~9% of U.S. persons age 16+)"
     },
     "synthetic_id_detection_rate": {
       "value": 0.05,
-      "range": [0.03, 0.07],
-      "source": "Reuters 2023",
-      "confidence": "validated",
-      "note": "95% failure rate = 5% detection"
+      "range": [0.01, 0.20],
+      "source": "Federal Reserve 2019/2022 Synthetic Identity Fraud Mitigation Toolkit (sensitivity parameter)",
+      "confidence": "unvalidated",
+      "note": "Sensitivity sweep parameter; circular Thomson Reuters 2023 95% claim withdrawn in v4.5.0 Correction #11"
     },
     "breach_exposure_rate": {
-      "value": 5.12,
-      "range": [4.5, 5.8],
-      "source": "ITRC 2024",
+      "value": 4.02,
+      "range": [3.5, 4.5],
+      "source": "ITRC 2025 (restated 2024 victim notices)",
       "confidence": "validated",
-      "note": "Exposures per capita"
+      "note": "1.367B restated 2024 notices (~4.02 notices per capita)"
     },
     "reporting_rate": {
       "value": 0.046,

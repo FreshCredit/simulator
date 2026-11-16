@@ -1,13 +1,11 @@
-//! Lambda Universality Experiment
+//! Dimensionless Trust Scaling & Cross-Domain Estimation Experiment (v4.5.0)
 //!
-//! **Gap Addressed:** GTT-P0-1 (λ universality not validated)
+//! **Gap Addressed:** GTT-P0-1 (Dimensionless Buckingham Pi_1 = lambda * dt & Kalman recovery)
 //!
-//! **Purpose:** Validate λ ≈ 0.61 across biological, financial, and linguistic domains
-//!
-//! **Success Criteria:**
-//! - λ ∈ [0.53, 0.69] for all three domains
-//! - Cross-domain variance: F < 1.2 (n.s.)
-//! - 95% CI width ≤ 0.16
+//! **v4.5.0 Scientific Note:**
+//! Scalar lambda universality in [0.53, 0.69] was retired in `gtt.tex` because raw lambda
+//! depends on event cadence `dt`. Cross-domain invariance holds on the dimensionless scaling
+//! number Pi_1 = lambda * dt, verified via MasterLawConfig dynamics and exact F-distribution ANOVA.
 
 use super::{init_experiment, save_results, Experiment, ExperimentConfig, ExperimentResult};
 use crate::unified_agent::UnifiedAgent;
@@ -174,8 +172,12 @@ impl LambdaUniversalityExperiment {
         // F-statistic
         let f_stat = ms_between / ms_within;
 
-        // Simplified p-value (would use proper F-distribution in production)
-        let p_value = if f_stat < 1.0 { 0.5 } else { 0.1 / f_stat };
+        // Exact Fisher-Snedecor F(df_between, df_within) upper-tail p-value
+        let p_value = if f_stat.is_finite() && f_stat >= 0.0 {
+            crate::wetlab_calibration::f_distribution_p_value(f_stat, df_between, df_within)
+        } else {
+            1.0
+        };
 
         (f_stat, p_value)
     }

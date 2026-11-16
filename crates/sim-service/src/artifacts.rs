@@ -34,10 +34,26 @@ impl ArtifactStore {
         Self { base_dir }
     }
 
-    /// Get the path to a run's directory
+    /// Validate an artifact run_id against path traversal (`CWE-22`).
+    /// Permits strictly non-empty `[A-Za-z0-9_-]` segments up to 128 chars.
+    #[must_use]
+    pub fn is_valid_run_id(run_id: &str) -> bool {
+        !run_id.is_empty()
+            && run_id.len() <= 128
+            && run_id
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+    }
+
+    /// Get the path to a run's directory (sanitized against path traversal)
     #[must_use]
     pub fn run_dir(&self, run_id: &str) -> PathBuf {
-        self.base_dir.join(run_id)
+        let safe_id = if Self::is_valid_run_id(run_id) {
+            run_id
+        } else {
+            "_invalid_run_id"
+        };
+        self.base_dir.join(safe_id)
     }
 
     /// Get the path to a run's manifest
@@ -342,5 +358,19 @@ mod tests {
         let store = ArtifactStore::new(dir.path().to_path_buf());
         let runs = store.list_runs().await.unwrap();
         assert!(runs.is_empty());
+    }
+
+    #[test]
+    fn test_artifact_store_rejects_path_traversal() {
+        assert!(ArtifactStore::is_valid_run_id("run-abc_123"));
+        assert!(!ArtifactStore::is_valid_run_id("../etc/passwd"));
+        assert!(!ArtifactStore::is_valid_run_id("run/../../secret"));
+        assert!(!ArtifactStore::is_valid_run_id(""));
+
+        let dir = tempdir().unwrap();
+        let store = ArtifactStore::new(dir.path().to_path_buf());
+        let bad = store.run_dir("../../etc");
+        assert!(bad.starts_with(dir.path()));
+        assert!(bad.ends_with("_invalid_run_id"));
     }
 }

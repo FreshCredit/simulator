@@ -1,17 +1,12 @@
-//! PDE4B Genetic Analysis Experiment (DOCAS-P0-1)
+//! PDE4B / Omnigenic Genetic Analysis Experiment (DOCAS-P0-1 / v4.5.0 Honest Parity)
 //!
-//! Validates: "Primary genetic analysis linking PDE4B expression to trust behavior"
-//!
-//! Gap Analysis:
-//! - Paper claims: PDE4B expression negatively correlates with generalized trust
-//! - Missing: Direct PDE4B → λ (learning rate) → trust pathway validation
-//! - Missing: Pharmacological simulation (rolipram effect)
-//!
-//! Methodology:
-//! 1. Model PDE4B expression levels (0.5 to 2.0)
-//! 2. Link to cAMP levels and downstream trust
-//! 3. Validate correlation r < -0.30 between PDE4B and trust
-//! 4. Simulate rolipram (PDE4 inhibitor) effect
+//! v4.5.0 Scientific Parity Note:
+//! In `tdf.tex` (Sim GEN-1 / GEN-2), single-locus PDE4B candidate-gene variance was FALSIFIED
+//! on real GTEx v8 data (R^2 < 0.0005, FAIL), and replaced by the omnigenic striatal
+//! coincidence p-PGS model (R^2 = 0.0765 across 100 core regulatory loci) plus 2S-MR (Sim GEN-3).
+//! This legacy module implements an idealized deterministic pharmacological pathway model
+//! (PDE4B -> cAMP -> PKA/lambda) and explicitly tags its empirical status as FALSIFIED at
+//! single-locus effect size (use `Sim GEN-2` / `Sim GEN-3` in v4.5.0 for causal inference).
 
 use crate::experiments::{Experiment, ExperimentConfig, ExperimentResult};
 use anyhow::Result;

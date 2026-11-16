@@ -869,18 +869,22 @@ impl Agent {
         self.prediction_error = prediction_error.abs();
     }
 
-    /// Update trust using the v3.0 Master Law:
-    /// ΔS_t = [λ⁺ max(ε̃, 0) + λ⁻ min(ε̃, 0)] r_t - δ_S(S_t - S_base)
+    /// Update trust using the canonical [0, 1] Master Law (MasterLaw.lean):
+    ///   S_t = clamp(tau_t / 2, 0, 1),  eps_tilde = (V_t - E_t) / s_d
+    ///   S_{t+1} = clamp(S_t + [lambda^+ max(eps,0) + lambda^- min(eps,0)] r_t - delta (S_t - S_base), 0, 1)
+    ///   tau_{t+1} = 2 * S_{t+1} in [0, 2]
     pub fn update_trust_master_law(
         &mut self,
         validation: f32,
         config: &crate::master_law::MasterLawConfig,
     ) {
         let current_tau = self.compute_trust() as f64;
-        let expectation = current_tau;
-        let eps = config.compute_normalized_mismatch(validation as f64, expectation);
-        let new_s = config.step(current_tau, eps);
-        let new_tau = (new_s as f32).clamp(0.0, 2.0);
+        let current_s = (current_tau * 0.5).clamp(0.0, 1.0);
+        let expectation_s = (current_tau * 0.5).clamp(0.0, 1.0);
+        let validation_s = (validation as f64).clamp(0.0, 1.0);
+        let eps = config.compute_normalized_mismatch(validation_s, expectation_s);
+        let new_s = config.step(current_s, eps).clamp(0.0, 1.0);
+        let new_tau = (new_s * 2.0) as f32;
 
         self.adjust_docas_for_target_tau(new_tau);
         self.tau_history.push(new_tau);
@@ -888,7 +892,7 @@ impl Agent {
             self.tau_history.remove(0);
         }
         self.expectation = new_tau;
-        self.prediction_error = (validation - new_tau).abs();
+        self.prediction_error = (validation_s as f32 - expectation_s as f32).abs();
     }
 
     /// Get learning rate from PDE4B genome trait

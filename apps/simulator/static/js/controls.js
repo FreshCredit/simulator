@@ -106,17 +106,18 @@ const SimulatorControls = (function() {
                 'dial-trust-decay': 1,
                 'dial-reputation-threshold': 5
             },
-            hypothesis: 'Is trust measurable? Yes — trust functions as a scale-invariant stabilizing operator that minimizes prediction error across biological (DOCAS), linguistic (CLICS-4), and financial systems.',
-            math: 'ΔS_t = -λ(E_t - V_t)  |  Ψ_trust = (Ψ_bio + Ψ_fin + Ψ_ling) / 3',
-            nullHypothesis: 'Trust is an unmeasurable subjective sentiment; multi-agent inequality emerges from noise (λ = 0, ΔH ≥ 0).'
+            hypothesis: 'Is trust measurable? Yes — trust functions as a scale-invariant stabilizing operator minimizing prediction error across biological (DOCAS), linguistic (CLICS³), and financial systems.',
+            math: 'ΔS_t = r_t[λ⁺ε_t⁺ - λ⁻ε_t⁻] - δ_S(S_t - S_base)  |  Corridor: [S_base - λ⁻/δ_S, S_base + λ⁺/δ_S]',
+            nullHypothesis: 'Trust is an unmeasurable subjective sentiment; multi-agent inequality emerges from noise (λ⁺ = λ⁻ = 0, ΔH ≥ 0).'
         },
         'custom': {
             layers: { encounters: true, genome: true, docas: true, dmn: true, criticality: true, institutions: true, norms: true, groups: true, language: true, music: true, economics: true, protocol: true },
             stage: 5,
             params: {},
-            hypothesis: 'Is trust measurable? Yes — trust functions as a scale-invariant stabilizing operator that minimizes prediction error across biological (DOCAS), linguistic (CLICS-4), and financial systems.',
-            math: 'ΔS_t = -λ(E_t - V_t)  |  Ψ_trust = (Ψ_bio + Ψ_fin + Ψ_ling) / 3',
-            nullHypothesis: 'Trust is an unmeasurable subjective sentiment; multi-agent inequality emerges from noise (λ = 0, ΔH ≥ 0).'
+            batteryId: 'master-law',
+            hypothesis: 'Is trust measurable? Yes — trust functions as a scale-invariant stabilizing operator minimizing prediction error across biological (DOCAS), linguistic (CLICS³), and financial systems.',
+            math: 'ΔS_t = r_t[λ⁺ε_t⁺ - λ⁻ε_t⁻] - δ_S(S_t - S_base)  |  Corridor: [S_base - λ⁻/δ_S, S_base + λ⁺/δ_S]',
+            nullHypothesis: 'Trust is an unmeasurable subjective sentiment; multi-agent inequality emerges from noise (λ⁺ = λ⁻ = 0, ΔH ≥ 0).'
         },
         // v3.0 Canonical Research Batteries
         // v4.0 Canonical Research Batteries (Sim O-Series & Sim D-Series)
@@ -169,6 +170,7 @@ const SimulatorControls = (function() {
         'sim-d18': {
             layers: { encounters: true, genome: true, docas: true, dmn: true, criticality: true },
             stage: 2,
+            batteryId: 'sim-d18',
             params: { 'dial-docas-alpha': 5 },
             baylor: { mode: 'unconscious', c_crit: 0.12 },
             hypothesis: 'Under propofol/NREM unconscious states (M=0), Cortisol suppression below threshold (C < 0.12) collapses executive threat filtering (λ⁻ → 0) and cognitive friction by 92%, while background syntax remains preserved under D=0 within 3.2%.',
@@ -189,11 +191,11 @@ const SimulatorControls = (function() {
         'sim-k-series': {
             layers: { encounters: true, genome: true, docas: true, relative: true, groups: true },
             stage: 3,
-            params: { 'dial-kingman': 1.62, 'dial-lineage-depth': 10 },
+            params: { 'dial-kingman': 1.0, 'dial-lineage-depth': 10 },
             visualLayers: { agents: true, relative: true, groups: true },
-            hypothesis: 'Sim K: Genealogical Kingman coalescent intensity kappa* = 1.62 calibrates twin heritability to h^2 = 0.342 in [0.28, 0.36], accelerating TMRCA by 39.8%.',
-            math: 'kappa* = 1.62, h^2 = 0.342, TMRCA_ratio = 0.602 <= 0.65 (39.8% accel)',
-            nullHypothesis: 'Lineage coalescence rates are uniform across neutral and selection regimes.'
+            hypothesis: 'Sim K (v4.5 — FAIL / PASS / FAIL): Forward diploid Wright-Fisher parent-pointer genealogy yields neutral h² ≈ 0.25 (below [0.28, 0.36], FAIL), preserves heritability correlation (PASS), and yields T_MRCA ratio 0.94 (FAIL).',
+            math: 'Diploid WF: h² ≈ 0.25 (FAIL), T_MRCA ratio = 0.94 (FAIL), Stratification PASS',
+            nullHypothesis: 'Neutral forward diploid inheritance matches empirical twin heritability without extra selection pressure.'
         },
         'sim-c-series': {
             layers: { encounters: true, genome: true, docas: true, choice: true, economics: true },
@@ -209,14 +211,14 @@ const SimulatorControls = (function() {
             stage: 4,
             params: { 'dial-drift': 1.0, 'dial-coherence': 0.7 },
             visualLayers: { agents: true, docas: true, groups: true },
-            hypothesis: 'Sim S: Semantic drift rate inversely correlates with trust standing (r = 0.994), while trust betrayal triggers an acute entropy surge (d = 2.79) and 3.12x lexical turnover.',
-            math: 'r(drift, trust) = 0.994 (p < 1e-15), Betrayal Cohen\'s d = 2.79, Turnover = 3.12x',
+            hypothesis: 'Sim S (v4.5 Naming-Game — PASS 3/3): 256×16×8 lexicon drift inversely tracks trust standing (r = -0.929), while betrayal triggers SVD spectral entropy surge (d = 2.18) and 2.41x lexical turnover.',
+            math: 'r(drift, trust) = -0.929, Betrayal SVD d = 2.18, Turnover = 2.41x (PASS 3/3)',
             nullHypothesis: 'Lexicon drift and concept embeddings evolve independently of agent social trust.'
         },
         'sim-dmn': {
             layers: { encounters: true, genome: true, docas: true, dmn: true, criticality: true },
             stage: 2,
-            params: { 'dial-planning-horizon': 5 },
+            params: { 'dial-planning-horizon': 2.1 },
             visualLayers: { agents: true, docas: true },
             hypothesis: 'Sim DMN: Counterfactual planning depth K=5 suppresses predatory contract uptake by 76.9% under visual cloaking (ratio 0.231 <= 0.60).',
             math: 'Uptake: 74.2% (K=1) -> 17.1% (K=5), Suppression = 76.9%, Saturation Delta_loss(K7->K10) = 0.0031',
@@ -237,8 +239,8 @@ const SimulatorControls = (function() {
             stage: 2,
             params: { 'dial-docas-alpha': 5 },
             visualLayers: { agents: true, energy: true },
-            hypothesis: 'Sim B: Basal intelligence without a brain: bioelectric gap-junction stress sharing (gamma_O = 0.60) navigates dead-end barriers in 102 steps, deflecting steering by 68.5 deg.',
-            math: 'Coupled Circumvention: 102 steps vs Insular: Trapped; Deflection = 68.5 deg; Recall = 42.2% faster',
+            hypothesis: 'Sim B (v4.5 2D Stress-Diffusion PDE — PASS / FAIL / FAIL): Bioelectric gap-junction sharing navigates dead-end barriers in 79 steps vs 300 insular (PASS), while geometric steering deflection is 16.4 deg (< 45 deg, FAIL) and scar recall speedup is 8.9% (< 20%, FAIL).',
+            math: 'Coupled Circumvention: 79 vs 300 steps (PASS); Deflection = 16.4 deg (FAIL); Recall = 8.9% (FAIL)',
             nullHypothesis: 'Non-neural cellular collectives cannot solve dead-end barrier navigation tasks.'
         },
         'sim-l-series': {
@@ -255,24 +257,24 @@ const SimulatorControls = (function() {
             stage: 5,
             params: { 'dial-docas-alpha': 5 },
             visualLayers: { agents: true, docas: true, network: true },
-            hypothesis: 'Sim X: Cross-substrate dynamical invariance: leading Lyapunov exponent falls within contraction corridor [-1.10, -0.90] across Cell (-0.97), Fly (-1.01), Mouse (-0.98), and Human (-1.00).',
-            math: 'Lyapunov in [-1.10, -0.90], Permutation Recurrence >= 0.50, Buckingham Pi Slope = 0.0084',
-            nullHypothesis: 'Trust update dynamics diverge across biological phylogenetic substrates.'
+            hypothesis: 'Sim X (v4.5 — FAIL / PASS / PASS): Across Cell/Fly/Mouse/Human N=1,024 topologies, dimensional Benettin Lyapunov spans 7 orders (FAIL), while dimensionless Buckingham Pi slope = 0.0 (PASS) and edge-rewired permutation recurrence R_perm >= 0.85 (PASS).',
+            math: 'Dimensional lambda_max: FAIL (7 orders) | Dimensionless Buckingham Pi slope = 0.0 (PASS) | R_perm >= 0.85 (PASS)',
+            nullHypothesis: 'Trust update dynamics diverge across biological phylogenetic substrates even after dimensional normalization.'
         },
         'sim-meta': {
             layers: { encounters: true, genome: true, docas: true, criticality: true, institutions: true, norms: true, groups: true },
             stage: 3,
             params: { 'dial-docas-alpha': 5 },
             visualLayers: { agents: true, docas: true, groups: true },
-            hypothesis: 'Sim META: 3D trust derivatives (Valence, Arousal, Dominance) classify 5 canonical emotion categories with Macro F1 = 0.9905.',
-            math: 'Macro F1 = 0.9905, Cross-scale correlation r > 0.95, Universal Contraction lambda_Lyap = -1.21',
+            hypothesis: 'Sim META (v4.5 — PASS / FAIL / FAIL): META-1 3D trust derivatives classify 5 emotion categories with Macro F1 = 0.9905 (PASS); META-2 cross-scale correlation and META-3 unnormalized contraction FAIL on unnormalized physical clocks.',
+            math: 'META-1 Macro F1 = 0.9905 (PASS) | META-2 Cross-Scale: FAIL | META-3 Unnormalized Contraction: FAIL',
             nullHypothesis: 'Affective emotional states are decoupled from temporal trust derivatives.'
         },
 
         'sim-a1': {
             layers: { encounters: true, genome: true, docas: true, dmn: true, economics: true },
             stage: 4,
-            params: { 'dial-planning-horizon': 5 },
+            params: { 'dial-planning-horizon': 2.1 },
             visualLayers: { agents: true, docas: true },
             hypothesis: 'Sim A1: Deep DMN counterfactual planning (K=5) anticipates multi-round generative extortion attacks, neutralizing trap losses by 100.0% (+0.750 net utility vs -1.000 myopic).',
             math: 'Trap Loss Reduction = 100.0%, Utility: -1.000 (K=1) -> +0.750 (K=5)',
@@ -283,8 +285,8 @@ const SimulatorControls = (function() {
             stage: 3,
             params: { 'dial-docas-alpha': 5 },
             visualLayers: { agents: true, docas: true, groups: true },
-            hypothesis: 'Sim B1: Closed-loop streaming BOLD to Bayesian state-space filter cuts trust parameter estimation MSE by 46.9% vs behavior-only baselines (r = 0.996).',
-            math: 'MSE Reduction = 46.92%, Lambda Tracking Pearson r = 0.9957',
+            hypothesis: 'Sim B1 (v4.5 Double-Gamma BOLD HRF + Lag EKF — PASS / FAIL): Streaming hemodynamic proxy cuts hidden trust-state MSE by 27.4% (PASS), while HRF delay caps instantaneous lambda tracking at r = 0.677 (< 0.80, FAIL).',
+            math: 'MSE Reduction = 27.4% (PASS), Lag-Augmented EKF r = 0.677 (FAIL)',
             nullHypothesis: 'Neural BOLD proxies provide zero informational advantage over pure behavioral tracking.'
         },
         'sim-s1': {
@@ -292,8 +294,8 @@ const SimulatorControls = (function() {
             stage: 2,
             params: { 'dial-docas-alpha': 5 },
             visualLayers: { agents: true, docas: true },
-            hypothesis: 'Sim S1: Continuous Medium Spiny Neuron (MSN) dendritic coincidence kinetics reduce homomorphically (r = 1.000) to the discrete Master Law Delta S = lambda(V - E).',
-            math: 'Synaptic Weight Homomorphism Pearson r = 1.0000, tau_c = 100ms',
+            hypothesis: 'Sim S1 (v4.5 Poisson Burst + ±12ms DA Jitter STDP — PASS): Continuous MSN dendritic coincidence kinetics reduce homomorphically (r = 0.9778) to the discrete Master Law.',
+            math: 'Synaptic Weight Homomorphism Pearson r = 0.9778 (PASS), tau_c = 100ms, jitter = ±12ms',
             nullHypothesis: 'Discrete macroscopic trust equations contradict continuous biophysical striatal plasticity.'
         },
         'sim-p9': {
@@ -525,6 +527,7 @@ const SimulatorControls = (function() {
         'sim-p8c': {
             layers: { encounters: true, genome: true, docas: true, dmn: true, institutions: true, protocol: true },
             stage: 5,
+            batteryId: 'sim-p8c',
             params: { 'dial-trust-decay': 1 },
             hypothesis: 'Sim P8c: Provider-diversity entropy gate scales standing accumulation by eta = 1 - exp(-H(w)). Monopoly colluders (P=1, H=0) are blocked (eta = 0.0), preserving the 1.4-year floor.',
             math: 'H(w) = -sum w_i ln(w_i), eta = 1 - e^(-H), Time = Target / (Rate · eta)',
@@ -533,6 +536,7 @@ const SimulatorControls = (function() {
         'sim-p8d': {
             layers: { encounters: true, genome: true, docas: true, dmn: true, economics: true, protocol: true },
             stage: 5,
+            batteryId: 'sim-p8d',
             params: { 'dial-reputation-threshold': 5 },
             hypothesis: 'Sim P8d: Microeconomic collusion auction proves adversary break-even loan extraction limit L*(K) exceeds entry micro-credit tiers ($> $2k at K=5, $> $5k at K=10).',
             math: 'L*(K) = [K · C_provider + N_target · c_settle] / (1 - P_detect), P_detect = 1 - (1 - p_audit)^K',
@@ -549,6 +553,7 @@ const SimulatorControls = (function() {
         'sim-w9': {
             layers: { encounters: true, genome: true, docas: true, dmn: true, economics: true, protocol: true },
             stage: 5,
+            batteryId: 'sim-w9',
             params: { 'dial-reputation-threshold': 5 },
             hypothesis: 'Sim W9: Dynamic Lemons Market ODE proves lending pool solvency (R(t) >= $500k) is preserved over a 36-month horizon under severe entrant adverse selection (theta_in = 0.32).',
             math: 'dB/dt = lambda_entrants - B(p_def + p_grad), dR/dt = Inflows - Outflows >= 0',
@@ -582,14 +587,16 @@ const SimulatorControls = (function() {
         'sim-at2': {
             layers: { encounters: true, genome: true, docas: true, protocol: true },
             stage: 5,
+            batteryId: 'sim-at2',
             params: { 'dial-trust-decay': 1 },
-            hypothesis: 'Sim AT-2: Multiscale Assembly Index spans 7 orders of magnitude: water (MA=3) -> cAMP (MA=14 razor) -> DARPP-32 (MA=68) -> TFP Substrate Ledger (MA=1,293).',
-            math: 'MA in [3, 1293], cAMP razor MA=14 <= 15, Life threshold MA >= 15',
+            hypothesis: 'Sim AT-2 (Correction #18): Multiscale Assembly Index spans 7 orders of magnitude: water (MA=3) -> cAMP (MA=14 razor) -> ATP (MA=15) -> DARPP-32 (MA=68) -> TFP Substrate Ledger (MA=1,293).',
+            math: 'MA in [3, 1293], cAMP razor MA=14 < ATP MA=15, Life threshold MA >= 15',
             nullHypothesis: 'Assembly index does not scale monotonically with functional expectation depth.'
         },
         'sim-at3': {
             layers: { encounters: true, genome: true, docas: true },
             stage: 2,
+            batteryId: 'sim-at3',
             params: { 'dial-docas-alpha': 5 },
             hypothesis: 'Sim AT-3: Silicon-Oxygen Morse potential in quartz breaks permanently under shear (r -> 13.31 A), while living cAMP metabolic repair restores ground-state expectation (r -> 1.56 A).',
             math: 'k_eff = 42.07 eV/A^2, F_active = -35.0 · sgn(eps), dG/dt < 0',
@@ -598,6 +605,7 @@ const SimulatorControls = (function() {
         'sim-thermo1': {
             layers: { encounters: true, genome: true, docas: true },
             stage: 2,
+            batteryId: 'sim-thermo1',
             params: { 'dial-docas-alpha': 5 },
             hypothesis: 'Sim THERMO-1: Trust erasure strictly respects the Landauer thermodynamic bound (2.97e-21 J at 310.15 K). Acute betrayal dissipates 43.0x excess heat over steady-state baseline.',
             math: 'E_min = k_B T ln(2) = 2.97e-21 J, Synaptic Betrayal Heat = 43.05x',
@@ -606,6 +614,7 @@ const SimulatorControls = (function() {
         'sim-patch1': {
             layers: { encounters: true, genome: true, docas: true },
             stage: 2,
+            batteryId: 'sim-patch1',
             params: { 'dial-docas-alpha': 5 },
             hypothesis: 'Sim PATCH-1: Pyramidal cell HCN1 shunting kinetics attenuate distal-to-soma EPSP transfer ratio from 0.463 (basal) to 0.318 (supercritical storm) as cAMP rises.',
             math: 'V_soma / V_distal: 0.463 -> 0.318, cAMP in [0.02, 2.0] uM',
@@ -660,7 +669,8 @@ const SimulatorControls = (function() {
         'dial-epigenetic-methylation': { min: 0.0, max: 1.0, scale: 'linear', decimals: 2 },
         'dial-circadian-deficit': { min: 0.0, max: 1.0, scale: 'linear', decimals: 2 },
         'dial-tax-redistribution': { min: 0.0, max: 0.50, scale: 'linear', decimals: 2 },
-        'dial-bank-run-sensitivity': { min: 0.0, max: 2.0, scale: 'linear', decimals: 1 }
+        'dial-bank-run-sensitivity': { min: 0.0, max: 2.0, scale: 'linear', decimals: 1 },
+        'dial-music-tau': { min: 0.0, max: 1.0, scale: 'linear', decimals: 2 }
     };
     
     /**
@@ -1027,6 +1037,18 @@ const SimulatorControls = (function() {
         };
         bindSliderGroup(neuroSliders, 'Neurobiology');
         
+        // Layer 5: Psychology
+        const psychologySliders = {
+            'dial-planning-horizon': { display: 'val-planning-horizon', decimals: 0 }
+        };
+        bindSliderGroup(psychologySliders, 'Psychology');
+
+        // Layer 6: Philosophy / Music
+        const musicSliders = {
+            'dial-music-tau': { display: 'val-music-tau', decimals: 2 }
+        };
+        bindSliderGroup(musicSliders, 'Music');
+
         // Layer 7: Ecology
         const ecologySliders = {
             'dial-trust-decay': { display: 'val-trust-decay', decimals: 4 },
@@ -1379,7 +1401,7 @@ const SimulatorControls = (function() {
             branchToggle.checked = isBranchB;
             const branchLabel = document.getElementById('label-brainit-branch');
             if (branchLabel) {
-                branchLabel.textContent = isBranchB ? 'Brain-IT Branch B (Semantic Detail)' : 'Brain-IT Branch A (Structural Margins)';
+                branchLabel.textContent = isBranchB ? 'Semantic Fine-Print Focus (Disclosure Detail)' : 'Layout Structural Margins (Sobel Salience)';
             }
         }
 
@@ -1439,8 +1461,59 @@ const SimulatorControls = (function() {
             varEffects.classList.toggle('hidden', !experimentId.startsWith('pde4b'));
         }
 
+        evaluateLiveBattery(config.batteryId);
+
         // Accordions stay closed by default - user can expand them manually
         console.log('[Controls] Configured toggles for:', experimentId);
+    }
+
+    /**
+     * Evaluate a live sim-core mechanistic/protocol battery via /api/batteries/:id/evaluate
+     */
+    async function evaluateLiveBattery(batteryId) {
+        const panel = document.getElementById('battery-live-panel');
+        const out = document.getElementById('battery-live-output');
+        const title = document.getElementById('battery-live-title');
+        if (!panel || !out) return;
+        if (!batteryId) {
+            panel.classList.add('hidden');
+            out.textContent = '';
+            return;
+        }
+        panel.classList.remove('hidden');
+        if (title) title.textContent = `Live sim-core Kernel Output (${batteryId})`;
+        out.textContent = 'Computing in Rust sim-core...';
+        try {
+            const apiUrl = window.SIM_SERVICE_URL || '';
+            const payload = {};
+            if (batteryId === 'master-law') {
+                const alphaSlider = document.getElementById('dial-docas-alpha');
+                const leakSlider = document.getElementById('dial-trust-decay');
+                const gain = alphaSlider ? normalizeToActual('dial-docas-alpha', parseFloat(alphaSlider.value)) * 2.0 : 1.0;
+                const leak = leakSlider ? normalizeToActual('dial-trust-decay', parseFloat(leakSlider.value)) : 0.01;
+                payload.params = {
+                    s_current: 0.50,
+                    epsilon: 0.50,
+                    lambda_plus: 0.01 * gain,
+                    lambda_minus: 0.04 * gain,
+                    leak_delta: Math.max(leak, 0.001),
+                    s_base: 0.50
+                };
+            }
+            const resp = await fetch(`${apiUrl}/api/batteries/${encodeURIComponent(batteryId)}/evaluate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!resp.ok) {
+                out.textContent = `Battery API unavailable (${resp.status})`;
+                return;
+            }
+            const data = await resp.json();
+            out.textContent = JSON.stringify(data.result, null, 2);
+        } catch (err) {
+            out.textContent = `Awaiting sim-service backend (${err.message})`;
+        }
     }
 
     /**
@@ -1840,7 +1913,7 @@ const SimulatorControls = (function() {
         // Lineage and Kingman coalescent parameters
         const kingmanInput = document.getElementById('dial-kingman');
         if (kingmanInput) {
-            params.kingman_coalescent = parseFloat(kingmanInput.value) || 1.62;
+            params.kingman_coalescent = parseFloat(kingmanInput.value) || 1.0;
         }
         const lineageDepthInput = document.getElementById('dial-lineage-depth');
         if (lineageDepthInput) {
@@ -1848,7 +1921,7 @@ const SimulatorControls = (function() {
         }
         const musicTauInput = document.getElementById('dial-music-tau');
         if (musicTauInput) {
-            params.music_metric_hierarchy_tau = parseFloat(musicTauInput.value) || 0.50;
+            params.music_metric_hierarchy_tau = normalizeToActual('dial-music-tau', parseFloat(musicTauInput.value));
         }
         
         // Get resource density from slider using normalized mapping
@@ -2084,7 +2157,7 @@ const SimulatorControls = (function() {
         document.getElementById('toggle-brainit-branch')?.addEventListener('change', (e) => {
             const label = document.getElementById('label-brainit-branch');
             if (label) {
-                label.textContent = e.target.checked ? 'Brain-IT Branch B (Semantic Detail)' : 'Brain-IT Branch A (Structural Margins)';
+                label.textContent = e.target.checked ? 'Semantic Fine-Print Focus (Disclosure Detail)' : 'Layout Structural Margins (Sobel Salience)';
             }
             sendIntervention();
         });

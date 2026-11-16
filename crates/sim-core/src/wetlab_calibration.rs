@@ -372,6 +372,25 @@ pub fn test_granger_causality(
     })
 }
 
+/// Empirical biometric observations recovered from wearable/wetlab logging
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct CalibrationObservations {
+    /// Nocturnal resting HRV RMSSD samples in ms
+    pub hrv_rmssd_samples: Vec<f64>,
+    /// Frontal Alpha Asymmetry (AF8 vs AF7) samples
+    pub faa_samples: Vec<f64>,
+    /// Fasting blood glucose samples in mg/dL
+    pub glucose_samples: Vec<f64>,
+    /// Prefrontal fNIRS medial cortical Δ[HbO2] samples in μmol/L
+    pub fnirs_hbo2_samples: Vec<f64>,
+    /// Sleeping wrist temperature samples in °C
+    pub sleeping_wrist_temp_samples: Vec<f64>,
+    /// Pairs of (financial debt shock in normalized units, cognitive bandwidth depletion %)
+    pub financial_depletion_pairs: Vec<(f64, f64)>,
+    /// Calibrated trust sensitivity λ samples
+    pub lambda_samples: Vec<f64>,
+}
+
 /// Personal empirical calibration profile recovered from 30-day wet-lab telemetry
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PersonalCalibrationProfile {
@@ -437,6 +456,87 @@ impl PersonalCalibrationProfile {
             cohort_stage: stage,
             s_channel_eligible,
         }
+    }
+
+    /// Empirically compute personal calibration baselines from observed biometric streams.
+    /// Uses robust statistics (median for outliers or mean for well-behaved vitals) and
+    /// OLS regression for `financial_depletion_slope`. Falls back to defaults when observations
+    /// are missing or insufficient.
+    #[must_use]
+    pub fn calibrate_from_observations(
+        user_id: &str,
+        cohort_stage: u8,
+        obs: &CalibrationObservations,
+    ) -> Self {
+        let mut profile = Self::for_cohort(user_id, cohort_stage);
+
+        fn mean_of(samples: &[f64]) -> Option<f64> {
+            let valid: Vec<f64> = samples.iter().copied().filter(|v| v.is_finite()).collect();
+            if valid.is_empty() {
+                None
+            } else {
+                Some(valid.iter().sum::<f64>() / valid.len() as f64)
+            }
+        }
+
+        fn median_of(samples: &[f64]) -> Option<f64> {
+            let mut valid: Vec<f64> = samples.iter().copied().filter(|v| v.is_finite()).collect();
+            if valid.is_empty() {
+                return None;
+            }
+            valid.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+            let mid = valid.len() / 2;
+            if valid.len() % 2 == 0 {
+                Some((valid[mid - 1] + valid[mid]) / 2.0)
+            } else {
+                Some(valid[mid])
+            }
+        }
+
+        if let Some(m) = median_of(&obs.hrv_rmssd_samples) {
+            profile.hrv_rmssd_baseline_ms = m.clamp(10.0, 200.0);
+        }
+        if let Some(m) = mean_of(&obs.faa_samples) {
+            profile.faa_baseline = m.clamp(-2.0, 2.0);
+        }
+        if let Some(m) = median_of(&obs.glucose_samples) {
+            profile.glucose_baseline_mgdl = m.clamp(50.0, 300.0);
+        }
+        if let Some(m) = mean_of(&obs.fnirs_hbo2_samples) {
+            profile.fnirs_hbo2_baseline_umol = m.clamp(0.0, 20.0);
+        }
+        if let Some(m) = mean_of(&obs.sleeping_wrist_temp_samples) {
+            profile.sleeping_wrist_temp_baseline_c = m.clamp(34.0, 39.0);
+        }
+        if let Some(m) = mean_of(&obs.lambda_samples) {
+            profile.lambda_mean = m.clamp(0.05, 1.50);
+        }
+
+        let valid_pairs: Vec<(f64, f64)> = obs
+            .financial_depletion_pairs
+            .iter()
+            .copied()
+            .filter(|(x, y)| x.is_finite() && y.is_finite())
+            .collect();
+        if valid_pairs.len() >= 2 {
+            let n = valid_pairs.len() as f64;
+            let mean_x = valid_pairs.iter().map(|(x, _)| *x).sum::<f64>() / n;
+            let mean_y = valid_pairs.iter().map(|(_, y)| *y).sum::<f64>() / n;
+            let mut ss_xx = 0.0;
+            let mut ss_xy = 0.0;
+            for (x, y) in valid_pairs {
+                let dx = x - mean_x;
+                let dy = y - mean_y;
+                ss_xx += dx * dx;
+                ss_xy += dx * dy;
+            }
+            if ss_xx > 1e-9 {
+                let slope = ss_xy / ss_xx;
+                profile.financial_depletion_slope = slope.clamp(0.0, 5.0);
+            }
+        }
+
+        profile
     }
 }
 
@@ -546,9 +646,320 @@ impl LatentSensitivityKalmanFilter {
     }
 }
 
+/// Result of Wing-Kristofferson (1973) motor timing decomposition
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WingKristoffersonResult {
+    /// Mean inter-tap interval in ms
+    pub mean_iti_ms: f64,
+    /// Standard deviation of ITI in ms
+    pub sd_iti_ms: f64,
+    /// Coefficient of variation (CV_ITI %)
+    pub cv_iti_pct: f64,
+    /// Central clock variance estimate (sigma^2_clock)
+    pub sigma_clock_sq: f64,
+    /// Peripheral motor execution delay variance estimate (sigma^2_motor)
+    pub sigma_motor_sq: f64,
+    /// Empirical lag-1 autocovariance
+    pub autocov_lag1: f64,
+}
+
+/// Computes Wing-Kristofferson (1973) timing decomposition on inter-tap intervals (ms)
+/// with Vorberg & Wing (1996) OLS linear tempo detrending to prevent drift bias.
+/// sigma^2_total = sigma^2_clock + 2 * sigma^2_motor - 2 * Cov(ITI_k, ITI_{k+1})
+#[must_use]
+pub fn wing_kristofferson_decomposition(itis_ms: &[f64]) -> Option<WingKristoffersonResult> {
+    let n = itis_ms.len();
+    if n < 4 || itis_ms.iter().any(|v| !v.is_finite()) {
+        return None;
+    }
+
+    let n_f = n as f64;
+    let mean_iti = itis_ms.iter().sum::<f64>() / n_f;
+    if mean_iti <= 0.0 {
+        return None;
+    }
+
+    let t_mean = (n_f - 1.0) / 2.0;
+    let ss_tt = (n_f * (n_f * n_f - 1.0)) / 12.0;
+
+    let mut ss_ty = 0.0;
+    for (t, &y) in itis_ms.iter().enumerate() {
+        ss_ty += ((t as f64) - t_mean) * (y - mean_iti);
+    }
+    let beta_1 = if ss_tt > 1e-12 { ss_ty / ss_tt } else { 0.0 };
+
+    let residuals: Vec<f64> = itis_ms
+        .iter()
+        .enumerate()
+        .map(|(t, &y)| y - (mean_iti + beta_1 * ((t as f64) - t_mean)))
+        .collect();
+
+    let df = (n - 2).max(1) as f64;
+    let var_total = residuals.iter().map(|&e| e * e).sum::<f64>() / df;
+    let sd_iti = var_total.max(0.0).sqrt();
+    let cv_iti_pct = (sd_iti / mean_iti.max(1e-4)) * 100.0;
+
+    let cov_lag1 = (0..n - 1)
+        .map(|i| residuals[i] * residuals[i + 1])
+        .sum::<f64>()
+        / df;
+
+    let sigma_motor_sq = (-cov_lag1).max(0.0);
+    let sigma_clock_sq = (var_total - 2.0 * sigma_motor_sq).max(0.0);
+
+    Some(WingKristoffersonResult {
+        mean_iti_ms: mean_iti,
+        sd_iti_ms: sd_iti,
+        cv_iti_pct,
+        sigma_clock_sq,
+        sigma_motor_sq,
+        autocov_lag1: cov_lag1,
+    })
+}
+
+/// Benjamini-Yekutieli (2001) False Discovery Rate (FDR) control under arbitrary joint statistical dependence.
+#[must_use]
+pub fn benjamini_yekutieli_fdr(p_values: &[f64], alpha: f64) -> Vec<bool> {
+    let m = p_values.len();
+    if m == 0 {
+        return Vec::new();
+    }
+    let alpha = if alpha.is_finite() && alpha > 0.0 {
+        alpha.min(1.0)
+    } else {
+        0.05
+    };
+
+    let c_m = (1..=m).map(|i| 1.0 / (i as f64)).sum::<f64>();
+
+    let mut indexed: Vec<(usize, f64)> = p_values
+        .iter()
+        .enumerate()
+        .map(|(i, &p)| {
+            (
+                i,
+                if p.is_finite() {
+                    p.clamp(0.0, 1.0)
+                } else {
+                    1.0
+                },
+            )
+        })
+        .collect();
+
+    indexed.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+
+    let mut max_k = 0;
+    for (rank, (_, p)) in indexed.iter().enumerate() {
+        let k = (rank + 1) as f64;
+        let threshold = (k / ((m as f64) * c_m)) * alpha;
+        if *p <= threshold {
+            max_k = rank + 1;
+        }
+    }
+
+    let mut rejected = vec![false; m];
+    for &(orig_idx, _) in &indexed[..max_k] {
+        rejected[orig_idx] = true;
+    }
+    rejected
+}
+
+/// Computes step-up adjusted q-values under Benjamini-Yekutieli (2001) FDR control
+/// with reverse-cumulative minimum adjustment ensuring monotonicity: q_(1) <= q_(2) <= ... <= q_(m).
+// POT-005: FDR q-values helper
+#[must_use]
+pub fn benjamini_yekutieli_q_values(p_values: &[f64]) -> Vec<f64> {
+    let m = p_values.len();
+    if m == 0 {
+        return Vec::new();
+    }
+    let c_m = (1..=m).map(|i| 1.0 / (i as f64)).sum::<f64>();
+
+    let mut indexed: Vec<(usize, f64)> = p_values
+        .iter()
+        .enumerate()
+        .map(|(i, &p)| {
+            (
+                i,
+                if p.is_finite() {
+                    p.clamp(0.0, 1.0)
+                } else {
+                    1.0
+                },
+            )
+        })
+        .collect();
+
+    indexed.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+
+    let mut raw_qs: Vec<f64> = indexed
+        .iter()
+        .enumerate()
+        .map(|(rank, (_, p))| {
+            let k = (rank + 1) as f64;
+            (*p * (m as f64) * c_m / k).min(1.0)
+        })
+        .collect();
+
+    let mut running_min: f64 = 1.0;
+    for q in raw_qs.iter_mut().rev() {
+        running_min = running_min.min(*q);
+        *q = running_min;
+    }
+
+    let mut out = vec![0.0; m];
+    for (sorted_idx, &(orig_idx, _)) in indexed.iter().enumerate() {
+        out[orig_idx] = raw_qs[sorted_idx];
+    }
+    out
+}
+
+/// Romano-Wolf (2005/2016) Stepdown procedure controlling Family-Wise Error Rate (FWER)
+#[must_use]
+pub fn romano_wolf_stepdown_fwer(
+    test_stats: &[f64],
+    bootstrap_stats: &[Vec<f64>],
+    alpha: f64,
+) -> Vec<bool> {
+    let m = test_stats.len();
+    if m == 0 || bootstrap_stats.is_empty() {
+        return vec![false; m];
+    }
+    let b = bootstrap_stats.len();
+    let alpha = if alpha.is_finite() && alpha > 0.0 {
+        alpha.min(1.0)
+    } else {
+        0.05
+    };
+
+    let mut rejected = vec![false; m];
+    let mut active_indices: Vec<usize> = (0..m).collect();
+
+    while !active_indices.is_empty() {
+        let mut max_boot_dist = Vec::with_capacity(b);
+        for boot_sample in bootstrap_stats {
+            let max_val = active_indices
+                .iter()
+                .map(|&idx| {
+                    if idx < boot_sample.len() && boot_sample[idx].is_finite() {
+                        boot_sample[idx].abs()
+                    } else {
+                        0.0
+                    }
+                })
+                .fold(0.0f64, f64::max);
+            max_boot_dist.push(max_val);
+        }
+
+        max_boot_dist.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        let crit_idx = ((1.0 - alpha) * (b as f64)).ceil() as usize;
+        let crit_idx = crit_idx.clamp(1, b) - 1;
+        let c_crit = max_boot_dist[crit_idx];
+
+        let newly_rejected: Vec<usize> = active_indices
+            .iter()
+            .copied()
+            .filter(|&idx| test_stats[idx].abs() >= c_crit)
+            .collect();
+
+        if newly_rejected.is_empty() {
+            break;
+        }
+
+        for &idx in &newly_rejected {
+            rejected[idx] = true;
+        }
+
+        active_indices.retain(|idx| !newly_rejected.contains(idx));
+    }
+
+    rejected
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_wing_kristofferson_decomposition() {
+        let itis = [500.0, 485.0, 515.0, 490.0, 510.0, 495.0, 505.0];
+        let wk = wing_kristofferson_decomposition(&itis).expect("WK decomposition should succeed");
+        assert!((wk.mean_iti_ms - 500.0).abs() < 1e-6);
+        assert!(wk.cv_iti_pct > 0.0);
+        assert!(wk.sigma_clock_sq >= 0.0);
+        assert!(wk.sigma_motor_sq >= 0.0);
+    }
+
+    #[test]
+    fn test_wing_kristofferson_drift_invariance() {
+        // Synthesize an ITI series with strong linear fatigue drift (+3.0 ms per tap)
+        // I_t = 500.0 + 3.0 * t + alternating motor delay noise
+        let mut drifting_itis = Vec::new();
+        for t in 0..20 {
+            let motor_noise = if t % 2 == 0 { -10.0 } else { 10.0 };
+            drifting_itis.push(500.0 + 3.0 * (t as f64) + motor_noise);
+        }
+        let wk =
+            wing_kristofferson_decomposition(&drifting_itis).expect("Drifting WK must succeed");
+        assert!(
+            wk.sigma_motor_sq > 0.0,
+            "Detrending must preserve motor variance despite drift"
+        );
+        assert!(
+            wk.sigma_clock_sq >= 0.0,
+            "Clock variance must remain non-negative"
+        );
+    }
+
+    #[test]
+    fn test_benjamini_yekutieli_fdr_control() {
+        let p_vals = [0.001, 0.004, 0.015, 0.08, 0.45, 0.90];
+        let rejections = benjamini_yekutieli_fdr(&p_vals, 0.05);
+        assert_eq!(rejections.len(), 6);
+        assert!(rejections[0]);
+        assert!(!rejections[5]);
+    }
+
+    #[test]
+    fn test_benjamini_yekutieli_q_values_monotonicity() {
+        let p_vals = [0.001, 0.004, 0.015, 0.08, 0.45, 0.90];
+        let q_vals = benjamini_yekutieli_q_values(&p_vals);
+        assert_eq!(q_vals.len(), 6);
+        for i in 0..q_vals.len() - 1 {
+            assert!(
+                q_vals[i] <= q_vals[i + 1] + 1e-12,
+                "BY q-values must be monotonic: q[{}] = {} > q[{}] = {}",
+                i,
+                q_vals[i],
+                i + 1,
+                q_vals[i + 1]
+            );
+        }
+        let rejections = benjamini_yekutieli_fdr(&p_vals, 0.05);
+        for (rej, q) in rejections.iter().zip(&q_vals) {
+            if *rej {
+                assert!(*q <= 0.05 + 1e-6);
+            }
+        }
+    }
+
+    #[test]
+    fn test_romano_wolf_stepdown_fwer_control() {
+        let test_stats = [4.5, 3.8, 1.2, 0.4];
+        let boot_stats = vec![
+            vec![2.1, 1.8, 1.1, 0.5],
+            vec![1.9, 2.2, 0.9, 0.6],
+            vec![2.4, 2.0, 1.3, 0.4],
+            vec![2.0, 1.7, 1.0, 0.7],
+            vec![2.3, 2.1, 1.2, 0.3],
+        ];
+        let rejections = romano_wolf_stepdown_fwer(&test_stats, &boot_stats, 0.05);
+        assert_eq!(rejections.len(), 4);
+        assert!(rejections[0]);
+        assert!(rejections[1]);
+        assert!(!rejections[3]);
+    }
 
     #[test]
     fn test_granger_causality_detects_causal_flow() {
@@ -746,5 +1157,49 @@ mod tests {
         assert_eq!(res.f_statistic, 0.0);
         assert_eq!(res.p_value, 1.0);
         assert!(!res.is_significant);
+    }
+
+    #[test]
+    fn test_personal_calibration_from_observations() {
+        let obs = CalibrationObservations {
+            hrv_rmssd_samples: vec![45.0, 52.0, 55.0, 48.0, 999.0], // Outlier 999.0; median = 52.0
+            faa_samples: vec![0.08, 0.12, 0.10],                    // Mean = 0.10
+            glucose_samples: vec![88.0, 92.0, 94.0],                // Median = 92.0
+            fnirs_hbo2_samples: vec![2.8, 3.2, 3.0],                // Mean = 3.00
+            sleeping_wrist_temp_samples: vec![36.50, 36.60],        // Mean = 36.55
+            financial_depletion_pairs: vec![(1.0, 0.5), (2.0, 1.0), (3.0, 1.5)], // Slope = 0.50
+            lambda_samples: vec![0.70, 0.80],                       // Mean = 0.75
+        };
+
+        let profile =
+            PersonalCalibrationProfile::calibrate_from_observations("user-test-477", 2, &obs);
+        assert_eq!(profile.user_id, "user-test-477");
+        assert_eq!(profile.cohort_stage, 2);
+        assert!(profile.s_channel_eligible);
+        assert_eq!(
+            profile.hrv_rmssd_baseline_ms, 52.0,
+            "HRV must match median 52.0"
+        );
+        assert!(
+            (profile.faa_baseline - 0.10).abs() < 1e-4,
+            "FAA must match mean 0.10"
+        );
+        assert_eq!(
+            profile.glucose_baseline_mgdl, 92.0,
+            "Glucose must match median 92.0"
+        );
+        assert!((profile.fnirs_hbo2_baseline_umol - 3.00).abs() < 1e-4);
+        assert!((profile.sleeping_wrist_temp_baseline_c - 36.55).abs() < 1e-4);
+        assert!((profile.financial_depletion_slope - 0.50).abs() < 1e-4);
+        assert!((profile.lambda_mean - 0.75).abs() < 1e-4);
+
+        // Test empty observations fallback cleanly to default cohort baselines
+        let empty_obs = CalibrationObservations::default();
+        let fallback =
+            PersonalCalibrationProfile::calibrate_from_observations("user-fallback", 4, &empty_obs);
+        assert_eq!(fallback.cohort_stage, 4);
+        assert!(!fallback.s_channel_eligible);
+        assert_eq!(fallback.hrv_rmssd_baseline_ms, 48.0);
+        assert_eq!(fallback.financial_depletion_slope, 0.42);
     }
 }

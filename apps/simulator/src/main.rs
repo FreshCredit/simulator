@@ -146,6 +146,12 @@ fn create_router(state: Arc<AppState>) -> Router {
             get(handlers::get_pde4b_config).post(handlers::update_pde4b_config),
         )
         .route("/api/stats/lambda", get(handlers::get_lambda_stats))
+        // Battery evaluator routes (live sim-core mechanistic & protocol models)
+        .route("/api/batteries", get(handlers::list_batteries))
+        .route(
+            "/api/batteries/:id/evaluate",
+            post(handlers::evaluate_battery),
+        )
         // Experiment routes
         .route("/api/experiments", get(handlers::list_experiments))
         .route("/api/experiments/:exp_id", get(handlers::get_experiment))

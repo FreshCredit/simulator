@@ -31,11 +31,11 @@ fn gtt_experiments() -> Vec<ExperimentInfo> {
         // === GTT (Generalized Trust Theory) ===
         ExperimentInfo {
             id: "lambda-universality".to_string(),
-            name: "Lambda Universality".to_string(),
+            name: "Dimensionless Trust Scaling (Pi_1 = lambda * dt)".to_string(),
             paper: "GTT".to_string(),
-            paper_full: "Generalized Trust Theory".to_string(),
+            paper_full: "The General Theory of Trust (v4.5.0)".to_string(),
             gap_ids: vec!["GTT-P0-1".to_string()],
-            description: "Validate universal λ ∈ [0.53, 0.69] across three estimation methods (GLS, Bayesian, Direct). Tests the core GTT prediction that learning rates converge to a universal value.".to_string(),
+            description: "Validate dimensionless Buckingham Pi_1 = lambda * dt dynamical scaling and Kalman parameter recovery (Sim W1, MAE <= 0.024). Note: scalar lambda universality in [0.53, 0.69] was retired in v4.5.0 because lambda depends on event cadence.".to_string(),
             default_config: ExperimentConfig {
                 agents: 10_000,
                 ticks: 365,
@@ -45,10 +45,10 @@ fn gtt_experiments() -> Vec<ExperimentInfo> {
             },
             acceptance_criteria: vec![
                 AcceptanceCriterion {
-                    metric: "lambda".to_string(),
-                    description: "Learning rate estimate".to_string(),
-                    target_min: Some(0.53),
-                    target_max: Some(0.69),
+                    metric: "lambda_mae".to_string(),
+                    description: "Kalman/RTS-EM parameter recovery MAE".to_string(),
+                    target_min: Some(0.0),
+                    target_max: Some(0.024),
                     unit: "dimensionless".to_string(),
                 },
             ],
@@ -299,11 +299,11 @@ fn pde4b_experiments() -> Vec<ExperimentInfo> {
         // === PDE4B ===
         ExperimentInfo {
             id: "pde4b-lambda-correlation".to_string(),
-            name: "PDE4B-Lambda Correlation".to_string(),
-            paper: "PDE4B".to_string(),
-            paper_full: "PDE4B Genetics".to_string(),
+            name: "Omnigenic Striatal Coincidence (Sim GEN-2)".to_string(),
+            paper: "TDF / DOCAS".to_string(),
+            paper_full: "Omnigenic Striatal Coincidence Genetics".to_string(),
             gap_ids: vec!["PDE4B-P0-1".to_string()],
-            description: "Test PDE4B → λ correlation r < -0.30. Validates the genetic pathway from PDE4B genotype to learning rate phenotype.".to_string(),
+            description: "Evaluate omnigenic polygenic coincidence score (p-PGS across 100 core regulatory loci, R^2 = 0.0765, p < 1e-80) driving Master Law gain lambda. Single-candidate PDE4B variance was falsified in Sim GEN-1 (R^2 < 0.0005).".to_string(),
             default_config: ExperimentConfig {
                 agents: 10_000,
                 ticks: 365,
@@ -313,12 +313,12 @@ fn pde4b_experiments() -> Vec<ExperimentInfo> {
             },
             acceptance_criteria: vec![
                 AcceptanceCriterion {
-                    metric: "correlation".to_string(),
-                    description: "PDE4B-λ correlation".to_string(),
-                    target_min: None,
-                    target_max: Some(-0.30),
+                    metric: "p_pgs_r2".to_string(),
+                    description: "Omnigenic p-PGS variance explained".to_string(),
+                    target_min: Some(0.05),
+                    target_max: None,
                     // TAG: surface=simulation owner=research-team rule=SIM-001
-                    unit: "Pearson r".to_string(),
+                    unit: "R^2".to_string(),
                 },
             ],
         },

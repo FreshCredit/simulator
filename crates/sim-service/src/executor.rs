@@ -6,12 +6,23 @@
 
 use std::path::PathBuf;
 use std::process::Stdio;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
+use std::time::Duration;
 use tokio::process::Command;
+use tokio::sync::Semaphore;
 use tracing::{debug, error, info};
 
+use crate::artifacts::ArtifactStore;
 use crate::blockchain::BlockchainAnchor;
 use crate::jobs::{Job, JobStatus, JobStore};
+
+const MAX_CONCURRENT_RUNNERS: usize = 4;
+const RUNNER_TIMEOUT_SECS: u64 = 120;
+
+fn runner_semaphore() -> &'static Semaphore {
+    static SEM: OnceLock<Semaphore> = OnceLock::new();
+    SEM.get_or_init(|| Semaphore::new(MAX_CONCURRENT_RUNNERS))
+}
 
 // TAG: surface=simulation owner=research-team rule=SIM-001
 /// Configuration for job executor
@@ -37,16 +48,27 @@ impl Default for ExecutorConfig {
 /// Execute a job by spawning sim-runner subprocess
 pub async fn execute_job(job: Job, store: Arc<JobStore>, config: ExecutorConfig) {
     let job_id = job.id.clone();
+    if !ArtifactStore::is_valid_run_id(&job_id) {
+        error!("Rejected invalid job_id for execution: {}", job_id);
+        store.update_status(&job_id, JobStatus::Failed);
+        return;
+    }
     info!("Starting execution of job {}", job_id);
 
     // Update status to Running
     store.update_status(&job_id, JobStatus::Running);
+
+    let Ok(_permit) = runner_semaphore().acquire().await else {
+        store.update_status(&job_id, JobStatus::Failed);
+        return;
+    };
 
     // Build output directory path
     let output_dir = config.artifacts_dir.join(&job_id);
 
     // Build command arguments
     let mut cmd = Command::new(&config.sim_runner_path);
+    cmd.kill_on_drop(true);
     cmd.arg("run")
         .arg("--agents")
         .arg(job.request.agent_count.to_string())
@@ -75,9 +97,14 @@ pub async fn execute_job(job: Job, store: Arc<JobStore>, config: ExecutorConfig)
     // Spawn the process
     match cmd.spawn() {
         Ok(child) => {
-            // Wait for completion
-            match child.wait_with_output().await {
-                Ok(output) => {
+            // Wait for completion with bounded wall-clock timeout
+            match tokio::time::timeout(
+                Duration::from_secs(RUNNER_TIMEOUT_SECS),
+                child.wait_with_output(),
+            )
+            .await
+            {
+                Ok(Ok(output)) => {
                     if output.status.success() {
                         info!("Job {} completed successfully", job_id);
 
@@ -151,9 +178,19 @@ pub async fn execute_job(job: Job, store: Arc<JobStore>, config: ExecutorConfig)
                         );
                     }
                 }
-                Err(e) => {
+                Ok(Err(e)) => {
                     error!("Job {} failed to wait: {}", job_id, e);
                     store.fail(&job_id, format!("Process wait error: {e}"));
+                }
+                Err(_) => {
+                    error!(
+                        "Job {} timed out after {}s (process killed)",
+                        job_id, RUNNER_TIMEOUT_SECS
+                    );
+                    store.fail(
+                        &job_id,
+                        format!("Job timed out after {RUNNER_TIMEOUT_SECS}s"),
+                    );
                 }
             }
         }
@@ -188,16 +225,25 @@ pub async fn execute_experiment(
     _pde4b_variance: String,
     config: ExecutorConfig,
 ) -> Result<(), String> {
+    if !ArtifactStore::is_valid_run_id(&experiment_id) || !ArtifactStore::is_valid_run_id(&run_id) {
+        return Err("Invalid experiment_id or run_id (must match [A-Za-z0-9_-]+)".to_string());
+    }
     info!(
         "Starting execution of experiment {} (run: {})",
         experiment_id, run_id
     );
+
+    let _permit = runner_semaphore()
+        .acquire()
+        .await
+        .map_err(|_| "Runner concurrency semaphore closed".to_string())?;
 
     // Build output directory path
     let output_dir = config.artifacts_dir.join(&run_id);
 
     // Build command arguments for experiment
     let mut cmd = Command::new(&config.sim_runner_path);
+    cmd.kill_on_drop(true);
     cmd.arg("experiment")
         .arg(&experiment_id)
         .arg("--agents")
@@ -228,9 +274,14 @@ pub async fn execute_experiment(
     // Spawn the process
     match cmd.spawn() {
         Ok(child) => {
-            // Wait for completion
-            match child.wait_with_output().await {
-                Ok(output) => {
+            // Wait for completion with bounded wall-clock timeout
+            match tokio::time::timeout(
+                Duration::from_secs(RUNNER_TIMEOUT_SECS),
+                child.wait_with_output(),
+            )
+            .await
+            {
+                Ok(Ok(output)) => {
                     if output.status.success() {
                         info!("Experiment {} completed successfully", run_id);
                         Ok(())
@@ -245,9 +296,16 @@ pub async fn execute_experiment(
                         ))
                     }
                 }
-                Err(e) => {
+                Ok(Err(e)) => {
                     error!("Experiment {} failed to wait: {}", run_id, e);
                     Err(format!("Process wait error: {e}"))
+                }
+                Err(_) => {
+                    error!(
+                        "Experiment {} timed out after {}s (process killed)",
+                        run_id, RUNNER_TIMEOUT_SECS
+                    );
+                    Err(format!("Experiment timed out after {RUNNER_TIMEOUT_SECS}s"))
                 }
             }
         }

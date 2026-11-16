@@ -80,13 +80,13 @@
                     <select id="experiment-selector" class="preset-select">
                         <option value="" selected>-- Select an experiment --</option>
                         <option value="custom">Custom Configuration</option>
-                        <optgroup label="v4.0 Optogenetics & Visual Cloaking (Sim O & D Series)">
-                            <option value="sim-o1">DOCAS v4.0: Sim O1 Dopaminergic Trust Lesion (ArchT 566nm)</option>
-                            <option value="sim-o2">DOCAS v4.0: Sim O2 Optogenetic Cortisol Vulnerability (ChR2 470nm)</option>
-                            <option value="sim-o3">TFP v4.0: Sim O3 Kuramoto O/S Mutant Fragmentation</option>
-                            <option value="sim-d16">DOCAS v4.0: Sim D16 Dual-Branch Visual Cloaking (38.9x Gradient)</option>
-                            <option value="sim-d17">DOCAS v4.0: Sim D17 Atmospheric Gating & Weather-Shield</option>
-                            <option value="sim-d18">DOCAS v4.0: Sim D18 Baylor Unconscious Narrative Gating (M in {0,1})</option>
+                        <optgroup label="v4.5 Causal ABM Interventions (Sim O &amp; D Series)">
+                            <option value="sim-o1">DOCAS v4.5: Sim O1 Dopaminergic Trust Lesion (ArchT 566nm)</option>
+                            <option value="sim-o2">DOCAS v4.5: Sim O2 Optogenetic Cortisol Vulnerability (ChR2 470nm)</option>
+                            <option value="sim-o3">TFP v4.5: Sim O3 Kuramoto O/S Mutant Fragmentation</option>
+                            <option value="sim-d16">DOCAS v4.5: Sim D16 Perceptual Salience Cloaking (38.9x Gradient)</option>
+                            <option value="sim-d17">DOCAS v4.5: Sim D17 Atmospheric Gating &amp; Weather-Shield</option>
+                            <option value="sim-d18">DOCAS v4.5: Sim D18 Baylor Unconscious Narrative Gating (M in {0,1})</option>
                         </optgroup>
 
                         <optgroup label="Empirical Research Artifacts (Sim M, K, C, S, DMN, CRIT, B, L, X, META)">
@@ -150,12 +150,12 @@
                             <option value="sim-d2">DOCAS: Sim D2 Mendelian Genome Pathway</option>
                         </optgroup>
                         <optgroup label="Exploratory Domain Experiments">
-                            <option value="lambda-universality">GTT: Lambda Universality</option>
+                            <option value="lambda-universality">GTT / Sim W1: Dimensionless Scaling (Pi_1 = lambda * dt)</option>
                             <option value="stability-law">GTT: Stability Law</option>
                             <option value="cross-domain-correlation">GTT: Cross-Domain Correlation</option>
                             <option value="twin-heritability">DOCAS: Twin Heritability</option>
                             <option value="criticality-sigma">DOCAS: Criticality Sigma</option>
-                            <option value="pde4b-lambda-correlation">PDE4B: PDE4B-Lambda Correlation</option>
+                            <option value="pde4b-lambda-correlation">TDF / Sim GEN-2: Omnigenic Striatal Coincidence (p-PGS)</option>
                             <option value="pde4b-pharmacology">PDE4B: PDE4B Pharmacology</option>
                             <option value="emotion-mapping">Emotion: Emotion Mapping</option>
                             <option value="emotion-pharmacology">Emotion: Emotion Pharmacology</option>
@@ -190,10 +190,14 @@
                     <div class="hypothesis-box" id="hypothesis-box">
                         <div class="hypothesis-label" id="hypothesis-title">Core Question: Is Trust Measurable?</div>
                         <p class="hypothesis-text" id="hypothesis-text">
-                            Trust functions as a scale-invariant stabilizing operator that minimizes prediction error across biological (DOCAS), linguistic (CLICS-4), and financial systems.
+                            Trust functions as a scale-invariant stabilizing operator minimizing prediction error across biological (DOCAS), linguistic (CLICS³), and financial systems.
                         </p>
                         <div class="math-model-box" id="hypothesis-math">
-                            ΔS_t = -λ(E_t - V_t)  |  Ψ_trust = (Ψ_bio + Ψ_fin + Ψ_ling) / 3
+                            ΔS_t = r_t[λ⁺ε_t⁺ - λ⁻ε_t⁻] - δ_S(S_t - S_base)  |  Corridor: [S_base - λ⁻/δ_S, S_base + λ⁺/δ_S]
+                        </div>
+                        <div id="battery-live-panel" class="hidden mt-2 p-2 rounded border border-border bg-muted/20 text-[10px] font-mono">
+                            <div class="font-bold text-foreground mb-1" id="battery-live-title">Live Battery Kernel Output (sim-core)</div>
+                            <pre id="battery-live-output" class="whitespace-pre-wrap text-muted-foreground m-0"></pre>
                         </div>
                         <div class="anti-hypothesis-box">
                             <div class="hypothesis-label" id="anti-hypothesis-label">Anti-Hypothesis (H₀)</div>
@@ -264,12 +268,6 @@
                 <div class="accordion-item mechanism-locked hidden" id="mechanism-locked-view">
                     <button type="button" class="btn accordion-header locked-header" disabled>
                         <span>🔒 Mechanism Layer (Locked)</span>
-                    </button>
-                    <div class="accordion-body">
-                        <p class="locked-message">Parameters locked while simulation is running.</p>
-                    </div>
-                </div>
-                        <span class="accordion-icon">▼</span>
                     </button>
                     <div class="accordion-body">
                         <p class="locked-message">Parameters locked while simulation is running.</p>
@@ -491,6 +489,15 @@
                             <span class="layer-label">Choice Architecture</span>
                             <span class="info-icon" data-info-key="mech-choice" title="Scientific documentation"></span>
                         </label>
+                        <div class="layer-config" id="config-psychology">
+                            <div class="form-group compact">
+                                <label class="form-label">DMN Planning Horizon (K) <span class="info-icon" data-info-key="dial-planning-horizon" title="Scientific documentation"></span></label>
+                                <div class="filter-range">
+                                    <input type="range" id="dial-planning-horizon" min="0" max="10" value="4.7" step="0.1" class="range-slider" data-param="true">
+                                    <span id="val-planning-horizon" class="range-value">10</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -535,6 +542,15 @@
                             <span class="layer-label">Music</span>
                             <span class="info-icon" data-info-key="mech-music" title="Scientific documentation"></span>
                         </label>
+                        <div class="layer-config hidden" id="config-music">
+                            <div class="form-group compact">
+                                <label class="form-label">Music Metric Hierarchy (τ) <span class="info-icon" data-info-key="dial-music-tau" title="Scientific documentation"></span></label>
+                                <div class="filter-range">
+                                    <input type="range" id="dial-music-tau" min="0" max="10" value="5" step="1" class="range-slider" data-param="true">
+                                    <span id="val-music-tau" class="range-value">0.50</span>
+                                </div>
+                            </div>
+                        </div>
                         <label class="layer-toggle">
                             <input type="checkbox" id="mech-norms">
                             <span class="toggle-switch"></span>
@@ -731,22 +747,22 @@
                     <label class="layer-toggle">
                         <input type="checkbox" id="toggle-brainit-branch">
                         <span class="toggle-switch"></span>
-                        <span class="layer-label" id="label-brainit-branch">Brain-IT Branch A (Structural Margins)</span>
+                        <span class="layer-label" id="label-brainit-branch">Layout Structural Margins (Sobel Salience)</span>
                     </label>
                 </div>
 
                 <div class="form-group compact cloaking-gauge-box">
                     <div class="cloaking-gauge-row">
                         <span class="text-muted">Predatory D₁ / D₁₀ Odds Ratio:</span>
-                        <span id="gauge-odds-ratio" class="cloaking-gauge-val-alert">38.9x</span>
+                        <span id="gauge-odds-ratio" class="cloaking-gauge-val-alert">—</span>
                     </div>
                     <div class="cloaking-gauge-row">
                         <span class="text-muted">D₁ (Stressed) Exploitation:</span>
-                        <span id="gauge-d1-rate" class="cloaking-gauge-val">77.2%</span>
+                        <span id="gauge-d1-rate" class="cloaking-gauge-val">—</span>
                     </div>
                     <div class="cloaking-gauge-row">
                         <span class="text-muted">D₁₀ (Secure) Exploitation:</span>
-                        <span id="gauge-d10-rate" class="cloaking-gauge-val">8.0%</span>
+                        <span id="gauge-d10-rate" class="cloaking-gauge-val">—</span>
                     </div>
                 </div>
             </section>
@@ -1145,8 +1161,8 @@
                         </div>
                     </div>
                     <div class="v4-telemetry-right flex items-center gap-2">
-                        <span id="v4-baylor-val" class="v4-badge">Baylor: M=1 (Conscious)</span>
-                        <span id="v4-friction-val" class="v4-badge">R_fric: 1.00</span>
+                        <span id="v4-baylor-val" class="v4-badge">Baylor: —</span>
+                        <span id="v4-friction-val" class="v4-badge">R_fric: —</span>
                         <button type="button" id="v4-telemetry-toggle-btn" class="v4-telemetry-btn" title="Toggle Dashboard">_</button>
                     </div>
                 </div>
@@ -1155,7 +1171,7 @@
                     <div class="v4-chart-card">
                         <div class="v4-chart-title">
                             <span>Vulnerability Gradient (D₁–D₁₀)</span>
-                            <span id="v4-gradient-badge" class="v4-badge">38.9x OR</span>
+                            <span id="v4-gradient-badge" class="v4-badge">—</span>
                         </div>
                         <canvas id="canvas-gradient" width="260" height="110"></canvas>
                     </div>
@@ -1164,7 +1180,7 @@
                     <div class="v4-chart-card">
                         <div class="v4-chart-title">
                             <span>Global Kuramoto Coherence (R)</span>
-                            <span id="v4-coherence-val" class="v4-badge">R: 0.85</span>
+                            <span id="v4-coherence-val" class="v4-badge">R: —</span>
                         </div>
                         <canvas id="canvas-kuramoto" width="260" height="110"></canvas>
                     </div>
@@ -1173,7 +1189,7 @@
                     <div class="v4-chart-card">
                         <div class="v4-chart-title">
                             <span>Trust Simplex Δ⁴ [D,O,C,A,S]</span>
-                            <span id="v4-simplex-state" class="v4-badge">Contraction</span>
+                            <span id="v4-simplex-state" class="v4-badge">—</span>
                         </div>
                         <canvas id="canvas-simplex" width="260" height="110"></canvas>
                     </div>
@@ -1358,7 +1374,7 @@
                 </section>
                 </div> <!-- End Left Pane -->
 
-                <!-- Right Pane: 3D Cortical Brain & CLICS-4 Colexification Graph -->
+                <!-- Right Pane: 3D Cortical Brain & CLICS³ Colexification Graph -->
                 <div class="inspector-col">
                 <!-- Wet-Lab & IoT Wearable Biomarkers -->
                 <section class="inspector-section">
@@ -1416,15 +1432,15 @@
                     </p>
                 </section>
                 
-                <!-- 6. CLICS-4 Language Graph (Colexification visualization) -->
+                <!-- 6. CLICS³ Language Graph (Colexification visualization) -->
                 <section class="inspector-section">
-                    <h3 class="inspector-section-title">Language Structure (CLICS-4)</h3>
+                    <h3 class="inspector-section-title">Language Structure (CLICS³)</h3>
                     <div class="clics-canvas-container" style="position: relative; width: 100%; height: 260px; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 8px; overflow: hidden;"> <!-- UI-EXEMPT: UI-001 WebGL canvas gradient -->
                         <div id="clics-canvas" class="clics-canvas" style="width: 100%; height: 100%;"></div>
                     </div>
                     <p class="text-xs text-muted-foreground mt-2" style="font-size: 0.75rem; color: #888; margin-top: 0.5rem;"> <!-- UI-EXEMPT: UI-001 muted text -->
-                        CLICS-4 colexification graph showing concept relationships.
-                        Nodes are concepts, edges show cross-linguistic colexification patterns.
+                        CLICS³ colexification graph showing concept relationships.
+                        Nodes are concepts, edges show cross-linguistic colexification patterns weighted by embedding cosine similarity.
                         Drag nodes to explore connections.
                     </p>
                 </section>

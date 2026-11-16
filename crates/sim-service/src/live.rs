@@ -389,10 +389,17 @@ fn sync_optogenetics_params(params: &SimulationParams, sim: &mut Simulation) {
 }
 
 fn sync_environmental_params(params: &SimulationParams, sim: &mut Simulation) {
-    if let Some(chi) = params.visual_cloaking_ratio {
+    if params.visual_cloaking_ratio.is_some() || params.brain_it_branch.is_some() {
+        let chi = params
+            .visual_cloaking_ratio
+            .unwrap_or(sim.config.visual_cloaking.cloaking_ratio);
         let safe_chi = sanitize_f32(Some(chi), 1.0, 1.0, 5.0);
+        let semantic_focus = params.brain_it_branch.as_deref() == Some("BranchBSemantic");
         sim.config.visual_cloaking =
-            sim_core::visual_cloaking::VisualAgreementStimulus::with_cloaking_ratio(safe_chi);
+            sim_core::visual_cloaking::VisualAgreementStimulus::with_cloaking_and_branch(
+                safe_chi,
+                semantic_focus,
+            );
     }
     if let Some(shield) = params.weather_shield_enabled {
         sim.config.weather_shield_enabled = shield;
@@ -402,9 +409,14 @@ fn sync_environmental_params(params: &SimulationParams, sim: &mut Simulation) {
         sim.environment.weather.temperature = safe_temp;
         sim.environment.weather.temperature_override = Some(safe_temp);
     }
-    if let Some(melanopsin) = params.melanopsin_enabled {
-        sim.environment.weather.enabled = melanopsin;
-        sim.config.environment.weather_enabled = melanopsin;
+    if params.weather_enabled.is_some() || params.melanopsin_enabled.is_some() {
+        let weather_on = params
+            .weather_enabled
+            .unwrap_or(sim.config.environment.weather_enabled);
+        let melanopsin_on = params.melanopsin_enabled.unwrap_or(true);
+        let effective_weather = weather_on && melanopsin_on;
+        sim.environment.weather.enabled = effective_weather;
+        sim.config.environment.weather_enabled = effective_weather;
     }
     if let Some(unconscious) = params.baylor_unconscious_mode {
         sim.config.baylor.mode = if unconscious {
@@ -704,13 +716,41 @@ pub fn spawn_simulation_loop(state: LiveSimulationState) {
                     height: params.grid_height as usize,
                     resource_density: params.resource_density,
                     initial_resource: params.initial_resource,
-                    altitude_effects_enabled: true,
-                    weather_enabled: true,
+                    altitude_effects_enabled: params.altitude_effects_enabled.unwrap_or(true),
+                    weather_enabled: params.weather_enabled.unwrap_or(true),
                     ..EnvironmentConfig::default()
                 },
-                weather_shield_enabled: true,
+                weather_shield_enabled: params.weather_shield_enabled.unwrap_or(false),
                 ..SimulationConfig::default()
             };
+
+            if let Some(ref p) = params.preset {
+                match p.to_lowercase().as_str() {
+                    "sim-c-series" => {
+                        config.toggles.dials.choice_loss_aversion_lambda = 4.0;
+                        config.toggles.dials.choice_default_bias = 0.25;
+                    }
+                    "sim-dmn" | "sim-a1" => {
+                        config.planning_horizon = 5;
+                        config.toggles.dials.dmn_k_rollout_range = (5, 6);
+                    }
+                    "sim-k-series" => {
+                        config.toggles.dials.kingman_coalescent = 1.0;
+                        config.toggles.dials.lineage_depth = 10;
+                    }
+                    "sim-m-series" => {
+                        config.toggles.dials.music_metric_hierarchy_tau = 0.50;
+                    }
+                    "sim-s-series" => {
+                        config.toggles.dials.language_drift_rate_factor = 1.0;
+                        config.toggles.dials.language_coherence_threshold = 0.70;
+                    }
+                    "sim-s1" => {
+                        config.trust_decay_rate = 0.01;
+                    }
+                    _ => {}
+                }
+            }
 
             apply_config_overrides(&mut config, &params);
             if let Some(mt) = params.max_ticks {

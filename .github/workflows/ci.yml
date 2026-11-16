@@ -1,0 +1,35 @@
+name: Agent Society Simulator CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  rust-workspace:
+    name: Rust Workspace Build & Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - run: cargo fmt --all -- --check
+      - run: cargo test --workspace --no-fail-fast
+
+  simulator-frontend:
+    name: Simulator Frontend Lint & Syntax
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/simulator
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: |
+          for f in static/js/controls.js static/js/info_tooltips.js static/js/clics_visualization.js static/js/viewer.js static/js/visualizations.js static/js/brain_visualization.js; do
+            node --check "$f"
+          done

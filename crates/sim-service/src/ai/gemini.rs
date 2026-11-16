@@ -216,9 +216,9 @@ impl GeminiConfig {
     ///
     /// Returns an error if the operation fails.
     pub fn from_env() -> Result<Self, GeminiError> {
-        let api_key = std::env::var("FRESHCREDIT_GEMINI__API_KEY")
-            .or_else(|_| std::env::var("GEMINI_API_KEY"))
+        let api_key = std::env::var("GEMINI_API_KEY")
             .or_else(|_| std::env::var("GOOGLE_AI_API_KEY"))
+            .or_else(|_| std::env::var("SIM_GEMINI_API_KEY"))
             .map_err(|_| GeminiError::ApiKeyNotFound)?;
 
         let model =
@@ -291,9 +291,21 @@ impl SimGeminiService {
         system_instruction: Option<SystemInstruction>,
         config: Option<GenerationConfig>,
     ) -> Result<GeminiResponse, GeminiError> {
+        if !self
+            .config
+            .model
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.'))
+        {
+            return Err(GeminiError::ApiError(
+                "Invalid Gemini model identifier".to_string(),
+            ));
+        }
+
         let url = format!(
-            "{}/models/{}:generateContent?key={}",
-            self.config.endpoint, self.config.model, self.config.api_key
+            "{}/models/{}:generateContent",
+            self.config.endpoint.trim_end_matches('/'),
+            self.config.model
         );
 
         let request = GeminiRequest {
@@ -302,10 +314,12 @@ impl SimGeminiService {
             system_instruction,
         };
 
+        // Pass API key via header rather than URL query string so reqwest errors/logs never leak secrets
         let response = self
             .client
             .post(&url)
             .header("Content-Type", "application/json")
+            .header("x-goog-api-key", &self.config.api_key)
             .json(&request)
             .send()
             .await
@@ -313,7 +327,12 @@ impl SimGeminiService {
 
         if !response.status().is_success() {
             let status = response.status();
-            let error_text = response.text().await.unwrap_or_default();
+            let error_text = crate::http_client::read_bounded_text(
+                response,
+                crate::http_client::DEFAULT_MAX_RESPONSE_BYTES,
+            )
+            .await
+            .unwrap_or_default();
             return Err(GeminiError::ApiError(format!(
                 "HTTP {status}: {error_text}"
             )));

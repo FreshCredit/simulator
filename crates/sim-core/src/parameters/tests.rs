@@ -331,38 +331,39 @@ fn test_empirical_parameters_default() {
 #[test]
 fn test_identity_credit_report_error_rate() {
     let params = EmpiricalParameters::default();
-    // Consumer Reports 2024: 44% error rate
-    assert!((params.credit_report_error_rate - 0.44).abs() < 0.01);
+    // FTC 2013 Section 319 study: 26% potentially material error rate
+    assert!((params.credit_report_error_rate - 0.26).abs() < 0.01);
     assert!((0.0..=1.0).contains(&params.credit_report_error_rate));
 }
 
 #[test]
 fn test_identity_serious_error_rate() {
     let params = EmpiricalParameters::default();
-    // ~14.5% serious errors (33% of 44%)
-    assert!((params.serious_error_rate - 0.145).abs() < 0.01);
+    // FTC 2013: 5.2% tier-shifting error rate
+    assert!((params.serious_error_rate - 0.052).abs() < 0.01);
     assert!(params.serious_error_rate < params.credit_report_error_rate);
 }
 
 #[test]
 fn test_identity_theft_victim_rate() {
     let params = EmpiricalParameters::default();
-    // BJS 2016: 10% annual victimization (corrected from 7.3%)
-    assert!((params.identity_theft_victim_rate - 0.10).abs() < 0.01); // Corrected to 10%
-    assert!((0.05..=0.10).contains(&params.identity_theft_victim_rate));
+    // BJS 2023: ~9% identity theft prevalence (23.9M persons age 16+)
+    assert!((params.identity_theft_victim_rate - 0.09).abs() < 0.01);
+    assert!((0.05..=0.12).contains(&params.identity_theft_victim_rate));
 }
 
 #[test]
 fn test_synthetic_id_detection_rate() {
     let params = EmpiricalParameters::default();
-    // Reuters 2023: 95% failure = 5% detection
+    // Sensitivity sweep baseline (Fed 2019/2022 SIF framework; retracted vendor stat removed)
     assert!((params.synthetic_id_detection_rate - 0.05).abs() < 0.01);
 }
 
 #[test]
 fn test_breach_exposure_rate() {
     let params = EmpiricalParameters::default();
-    // ITRC 2024: ~5.12 exposures per capita
+    // ITRC 2025 restated 2024 notices: 1.367B (~4.02 per capita)
+    assert!((params.breach_exposure_rate - 4.02).abs() < 0.1);
     assert!(params.breach_exposure_rate > 1.0);
     assert!(params.breach_exposure_rate < 10.0);
 }

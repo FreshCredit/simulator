@@ -108,6 +108,20 @@ pub async fn get_lambda_stats(State(state): State<Arc<AppState>>) -> impl IntoRe
 // Experiment API Proxy Routes
 // ============================================================================
 
+/// List all live-evaluable mechanistic batteries
+pub async fn list_batteries(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    proxy_get(state, "/api/batteries").await
+}
+
+/// Evaluate a mechanistic or protocol battery live in sim-core
+pub async fn evaluate_battery(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    body: Body,
+) -> impl IntoResponse {
+    proxy_post_body(state, &format!("/api/batteries/{id}/evaluate"), body).await
+}
+
 /// List all experiments
 pub async fn list_experiments(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     proxy_get(state, "/api/experiments").await
@@ -165,7 +179,7 @@ pub async fn stream_experiment_progress(
     {
         Ok(resp) => {
             let status = resp.status();
-            let body = resp.text().await.unwrap_or_default();
+            let body = read_bounded_text_sim(resp, MAX_BODY_SIZE).await;
             (
                 StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
                 body,
@@ -750,7 +764,7 @@ pub async fn live_stream(State(state): State<Arc<AppState>>) -> Response {
     info!("[PROXY] Response headers: {:?}", resp.headers());
 
     if !status.is_success() {
-        let error_body = resp.text().await.unwrap_or_default();
+        let error_body = read_bounded_text_sim(resp, MAX_BODY_SIZE).await;
         warn!(
             "[PROXY] sim-service returned error: {} - {}",
             status, error_body
@@ -855,7 +869,7 @@ pub async fn ai_stream(State(state): State<Arc<AppState>>) -> Response {
 
     let status = resp.status();
     if !status.is_success() {
-        let error_body = resp.text().await.unwrap_or_default();
+        let error_body = read_bounded_text_sim(resp, MAX_BODY_SIZE).await;
         warn!("[PROXY] sim-service AI stream error: {status} - {error_body}");
         return (
             StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
@@ -902,6 +916,26 @@ pub async fn run_validation(State(state): State<Arc<AppState>>) -> impl IntoResp
 // ============================================================================
 // TAG: surface=simulation owner=research-team rule=SIM-001
 
+async fn read_bounded_text_sim(mut response: reqwest::Response, max_bytes: usize) -> String {
+    if response
+        .content_length()
+        .is_some_and(|l| l > max_bytes as u64)
+    {
+        return String::new();
+    }
+    let mut buf = Vec::with_capacity(4096);
+    for _ in 0..100_000usize {
+        let Ok(Some(chunk)) = response.chunk().await else {
+            break;
+        };
+        if buf.len().saturating_add(chunk.len()) > max_bytes {
+            return String::new();
+        }
+        buf.extend_from_slice(&chunk);
+    }
+    String::from_utf8(buf).unwrap_or_default()
+}
+
 async fn proxy_get(state: Arc<AppState>, path: &str) -> impl IntoResponse {
     match state
         .http_client
@@ -912,7 +946,7 @@ async fn proxy_get(state: Arc<AppState>, path: &str) -> impl IntoResponse {
     {
         Ok(resp) => {
             let status = resp.status();
-            let body = resp.text().await.unwrap_or_default();
+            let body = read_bounded_text_sim(resp, MAX_BODY_SIZE).await;
             (
                 StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
                 body,
@@ -940,7 +974,7 @@ async fn proxy_post(state: Arc<AppState>, path: &str) -> impl IntoResponse {
     {
         Ok(resp) => {
             let status = resp.status();
-            let body = resp.text().await.unwrap_or_default();
+            let body = read_bounded_text_sim(resp, MAX_BODY_SIZE).await;
             (
                 StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
                 body,
@@ -983,7 +1017,7 @@ async fn proxy_post_body(state: Arc<AppState>, path: &str, body: Body) -> impl I
     {
         Ok(resp) => {
             let status = resp.status();
-            let body = resp.text().await.unwrap_or_default();
+            let body = read_bounded_text_sim(resp, MAX_BODY_SIZE).await;
             (
                 StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
                 body,
@@ -1012,7 +1046,7 @@ async fn proxy_post_empty(state: Arc<AppState>, path: &str) -> impl IntoResponse
     {
         Ok(resp) => {
             let status = resp.status();
-            let body = resp.text().await.unwrap_or_default();
+            let body = read_bounded_text_sim(resp, MAX_BODY_SIZE).await;
             (
                 StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
                 body,

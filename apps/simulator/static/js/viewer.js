@@ -1082,7 +1082,7 @@ const SimulatorViewer = (function() {
     }
 
     /**
-     * Initialize CLICS-4 colexification graph visualization
+     * Initialize CLICS³ colexification graph visualization
      * Shows the agent's lexicon structure as a force-directed graph
      */
     function initCLICSVisualization(agent) {
@@ -3954,6 +3954,21 @@ const SimulatorViewer = (function() {
             
             logEvent('Starting default simulation...', 'info');
         },
+
+        // Public UI helpers exposed cleanly outside IIFE
+        logEvent: (message, type = 'info', agentId = null, category = 'other') => {
+            logEvent(message, type, agentId, category);
+        },
+        exportBrainSnapshot: () => {
+            if (!brainViz) return false;
+            const dataUrl = brainViz.exportImage();
+            const a = document.createElement('a');
+            a.href = dataUrl;
+            a.download = `brain-agent-${brainVizLastAgentId || 'snapshot'}-tick-${currentTick}.png`;
+            a.click();
+            logEvent('3D Brain snapshot exported', 'success');
+            return true;
+        },
         
         // AI Chat integration (canonical unified agent widget)
         openAIChat: () => {
@@ -4117,7 +4132,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Render live preview on canvas
             SimulatorViewer.render();
-            logEvent('Standby Mode: Configure simulation layers and parameters before running', 'info');
+            SimulatorViewer.logEvent('Standby Mode: Configure simulation layers and parameters before running', 'info');
         });
     }
 
@@ -4143,14 +4158,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (brainExportBtn) {
         brainExportBtn.addEventListener('click', () => {
             console.log('[Viewer] Brain snapshot export clicked');
-            if (brainViz) {
-                const dataUrl = brainViz.exportImage();
-                const a = document.createElement('a');
-                a.href = dataUrl;
-                a.download = `brain-agent-${brainVizLastAgentId || 'snapshot'}-tick-${currentTick}.png`;
-                a.click();
-                logEvent('3D Brain snapshot exported', 'success');
-            }
+            SimulatorViewer.exportBrainSnapshot();
         });
     }
     

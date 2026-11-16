@@ -134,11 +134,24 @@ pub fn build_lexicon_summary(agent: &sim_core::Agent) -> Option<LexiconSummary> 
         })
         .collect();
 
+    let concept_map: std::collections::HashMap<u64, &sim_core::language::Concept> = agent
+        .lexicon
+        .concepts
+        .values()
+        .map(|con| (con.id, con))
+        .collect();
+
     let colexifications = agent
         .lexicon
         .colexification_map
         .iter()
-        .map(|&(c1, c2)| (c1, c2, 0.8))
+        .map(|&(c1, c2)| {
+            let weight = match (concept_map.get(&c1), concept_map.get(&c2)) {
+                (Some(a), Some(b)) => a.embedding.cosine_similarity(&b.embedding).clamp(0.05, 1.0),
+                _ => 0.5,
+            };
+            (c1, c2, weight)
+        })
         .collect();
 
     let colexification_map = agent

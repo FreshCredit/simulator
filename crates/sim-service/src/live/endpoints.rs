@@ -792,14 +792,23 @@ pub async fn import_state(
         }
     };
 
+    const MAX_HISTORY_FRAMES: usize = 1_000;
+    if export.history.len() > MAX_HISTORY_FRAMES {
+        let keep_from = export.history.len() - MAX_HISTORY_FRAMES;
+        export.history.drain(..keep_from);
+    }
     *state.history.write() = export.history.clone();
 
-    // Sanitize agent count and float fields
+    // Sanitize grid bounds, agent count, and float fields to prevent OOM DoS
+    let clamped_w = export.config.environment.width.clamp(16, 256);
+    let clamped_h = export.config.environment.height.clamp(16, 256);
+    export.config.environment.width = clamped_w;
+    export.config.environment.height = clamped_h;
     if export.agents.len() > 500 {
         export.agents.truncate(500);
     }
-    let grid_w = export.config.environment.width as f32;
-    let grid_h = export.config.environment.height as f32;
+    let grid_w = clamped_w as f32;
+    let grid_h = clamped_h as f32;
     for a in &mut export.agents {
         if !a.x.is_finite() {
             a.x = grid_w / 2.0;
@@ -828,8 +837,8 @@ pub async fn import_state(
     );
 
     let params = SimulationParams {
-        grid_width: export.config.environment.width as u32,
-        grid_height: export.config.environment.height as u32,
+        grid_width: clamped_w as u32,
+        grid_height: clamped_h as u32,
         agent_count: (export.agents.len() as u32).clamp(5, 500),
         toggles: Some(export.config.toggles),
         max_ticks: Some(export.config.max_ticks),

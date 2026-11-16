@@ -128,6 +128,29 @@ impl MasterLawConfig {
         self.step(current_s, eps)
     }
 
+    /// Z3-verified (v4.5) asymmetric shifted BIBO invariant interval under unit mismatch |ε̃| ≤ 1:
+    /// `[S_base - λ⁻/δ_S, S_base + λ⁺/δ_S]` when `δ_S > 0`. Returns `None` in the leak-free (`δ_S = 0`) limit.
+    #[must_use]
+    pub fn asymmetric_invariant_bounds(&self) -> Option<(f64, f64)> {
+        if self.leak_delta <= 1e-12 {
+            None
+        } else {
+            let lower = self.s_base - (self.lambda_minus / self.leak_delta);
+            let upper = self.s_base + (self.lambda_plus / self.leak_delta);
+            Some((lower, upper))
+        }
+    }
+
+    /// Clamp a state value into the Z3-verified asymmetric BIBO invariant corridor when `δ_S > 0`
+    #[must_use]
+    pub fn clamp_to_invariant_bounds(&self, s: f64) -> f64 {
+        if let Some((lower, upper)) = self.asymmetric_invariant_bounds() {
+            s.clamp(lower, upper)
+        } else {
+            s
+        }
+    }
+
     /// Open-loop Liouville transverse contraction rate κ = -μ everywhere
     #[must_use]
     pub fn open_loop_divergence(&self) -> f64 {
@@ -286,5 +309,34 @@ mod tests {
 
         let wrapped_neg = crate::kuramoto_leakage::wrap_phase_pi(-100.5 * std::f64::consts::PI);
         assert!(wrapped_neg >= -std::f64::consts::PI && wrapped_neg <= std::f64::consts::PI);
+    }
+
+    #[test]
+    fn test_asymmetric_shifted_bibo_invariance_z3_parity() {
+        let cfg = MasterLawConfig {
+            preset: MasterLawPreset::ProtocolAsymmetric,
+            lambda_plus: 0.02,
+            lambda_minus: 0.08,
+            recognition_gate: 1.0,
+            leak_delta: 0.10,
+            s_base: 0.50,
+            scale_s_d: 1.0,
+            corrective_bandwidth_mu: 1.0,
+        };
+        let (lower, upper) = cfg
+            .asymmetric_invariant_bounds()
+            .expect("Positive leak_delta must yield invariant bounds");
+        assert!((lower - (-0.30)).abs() < 1e-12);
+        assert!((upper - 0.70).abs() < 1e-12);
+
+        for s_init in [lower, 0.0, cfg.s_base, upper] {
+            for eps in [-1.0, -0.5, 0.0, 0.5, 1.0] {
+                let s_next = cfg.step(s_init, eps);
+                assert!(
+                    s_next >= lower - 1e-12 && s_next <= upper + 1e-12,
+                    "Step from {s_init} with eps={eps} escaped [{lower}, {upper}]: got {s_next}"
+                );
+            }
+        }
     }
 }

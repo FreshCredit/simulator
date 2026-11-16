@@ -194,12 +194,17 @@ const VisualizationPanel = (function() {
      */
     function showPlaceholder(message) {
         if (!contentContainer) return;
-        contentContainer.innerHTML = `
-            <div class="viz-placeholder">
-                <div class="viz-placeholder-icon">📈</div>
-                <p>${message}</p>
-            </div>
-        `;
+        contentContainer.textContent = '';
+        const wrap = document.createElement('div');
+        wrap.className = 'viz-placeholder';
+        const icon = document.createElement('div');
+        icon.className = 'viz-placeholder-icon';
+        icon.textContent = '📈';
+        const p = document.createElement('p');
+        p.textContent = message == null ? '' : String(message);
+        wrap.appendChild(icon);
+        wrap.appendChild(p);
+        contentContainer.appendChild(wrap);
     }
 
     /**

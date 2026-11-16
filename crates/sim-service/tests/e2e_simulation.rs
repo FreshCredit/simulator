@@ -718,3 +718,58 @@ async fn test_live_intervention_full_jacobian_wiring() {
             < 1e-4
     );
 }
+
+#[tokio::test]
+async fn test_state_import_clamps_oversized_grid_and_history_bounds() {
+    let app = create_test_app();
+    let payload = serde_json::json!({
+        "tick": 10,
+        "config": {
+            "environment": { "width": 100000, "height": 100000 }
+        },
+        "agents": [],
+        "stats": { "total_agents": 0, "alive_agents": 0, "verified_agents": 0, "groups": 0 },
+        "exported_at": "2026-11-15T00:00:00Z",
+        "history": vec![serde_json::json!({"tick": 1}); 1500]
+    });
+
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/live/state/import")
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_vec(&payload).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let export_resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/live/state/export")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let bytes = axum::body::to_bytes(export_resp.into_body(), 1024 * 1024)
+        .await
+        .unwrap();
+    let export_json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert!(
+        export_json["config"]["environment"]["width"]
+            .as_u64()
+            .unwrap()
+            <= 256
+    );
+    assert!(
+        export_json["config"]["environment"]["height"]
+            .as_u64()
+            .unwrap()
+            <= 256
+    );
+}

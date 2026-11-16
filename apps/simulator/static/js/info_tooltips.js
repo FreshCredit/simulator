@@ -14,18 +14,18 @@ const ScientificInfo = (function() {
 
     // Scientific documentation database per 9-layer architecture
     const infoDatabase = {
-        // Core Research Hypothesis (GTT v4.0)
+        // Core Research Hypothesis (GTT v4.5)
         'hypothesis': {
             title: 'Core Research Hypothesis: Is Trust Measurable?',
-            layer: 'General Theory of Trust (GTT v4.0)',
-            description: 'Trust is not an arbitrary sentiment; it functions as a scale-invariant stabilizing operator that minimizes prediction error across biological, linguistic, and financial domains.',
-            science: 'Expectation-validation convergence equation: ΔS_t = -λ(E_t - V_t). Minimizing prediction error produces measurable systemic entropy reduction (ΔH < 0) and predictive stability (Ψ_trust = (Ψ_bio + Ψ_fin + Ψ_ling) / 3).',
-            citation: 'The General Theory of Trust (Shigaki, 2026); Master Stability Contraction Theorem (Lean 4, 2026).',
+            layer: 'General Theory of Trust (GTT v4.5)',
+            description: 'Trust is not an arbitrary sentiment; it functions as a bounded, asymmetric stabilizing operator that minimizes prediction error across biological, linguistic, and financial domains.',
+            science: 'v4.5.0 Master Law: ΔS_t = r_t[λ⁺ε_t⁺ - λ⁻ε_t⁻] - δ_S(S_t - S_base), proven inductively invariant on [S_base - λ⁻/δ_S, S_base + λ⁺/δ_S] in Z3 SMT and Lean 4.35 (32 theorems).',
+            citation: 'The General Theory of Trust v4.5 (Shigaki, 2026); Lean 4.35 & Z3 Formal Verification Suite.',
             parameters: [
-                'Primary Law: ΔS_t = -λ(E_t - V_t)',
-                'Composite Stability: Ψ_trust = (Ψ_bio + Ψ_fin + Ψ_ling) / 3',
+                'Master Law: ΔS_t = r_t[λ⁺ε_t⁺ - λ⁻ε_t⁻] - δ_S(S_t - S_base)',
+                'BIBO Corridor: [S_base - λ⁻/δ_S, S_base + λ⁺/δ_S]',
                 'Trust Emergence: τ = (D + O + S) / (1 + C + A)',
-                'Anti-Hypothesis (H₀): Trust is unmeasurable subjective sentiment (λ = 0, ΔH ≥ 0)'
+                'Anti-Hypothesis (H₀): Trust is unmeasurable subjective sentiment (λ⁺ = λ⁻ = 0, ΔH ≥ 0)'
             ]
         },
 
@@ -149,11 +149,11 @@ const ScientificInfo = (function() {
         
         // Layer 4: Neurobiology
         'dial-docas-alpha': {
-            title: 'DOCAS Response Rate (α)',
+            title: 'DOCAS Gain Multiplier (α)',
             layer: 'Layer 4: Neurobiology',
-            description: 'Base sensitivity of neuromodulator systems to stimuli.',
-            science: 'Higher values make agents more reactive to environmental and social signals.',
-            parameters: ['Range: 0.1-1.0', 'Default: 0.5', 'Affects: Emotional responsiveness']
+            description: 'Scales DOCAS neuromodulatory learning sensitivities (λ⁺, λ⁻) around the calibrated baseline without distorting homeostatic equilibrium S_base.',
+            science: 'Higher α increases agent responsiveness to positive and negative prediction errors ε_t = (V_t - E_t)/s_d.',
+            parameters: ['Range: 0.1 - 1.0 (gain scale 0.2x - 2.0x)', 'Default: 0.5 (1.0x)', 'Affects: λ⁺ and λ⁻ sensitivity']
         },
         'dial-curvature-window': {
             title: 'Trust Curvature Window',
@@ -162,14 +162,25 @@ const ScientificInfo = (function() {
             science: 'Larger windows smooth out short-term fluctuations but delay detection of genuine trust crises.',
             parameters: ['Range: 5-50 ticks', 'Default: 10', 'Affects: Trust volatility detection']
         },
-        
+
+        // Layer 5: Psychology
+        'dial-planning-horizon': {
+            title: 'DMN Planning Horizon (K)',
+            layer: 'Layer 5: Psychology',
+            description: 'Counterfactual rollout steps evaluated by Default Mode Network planning before accepting or rejecting agreements.',
+            science: 'Sim DMN & Sim A1 show K >= 5 anticipates delayed predatory traps and reduces multi-round extortion uptake.',
+            citation: 'TDF / DOCAS §5 (Sim DMN) & Sim A1 Adversarial Deception Battery.',
+            parameters: ['Range: 1 - 20 steps', 'Default: 10 (Sim DMN target K=5)', 'Affects: DMN counterfactual rollout depth']
+        },
+
         // Layer 7: Ecology
         'dial-trust-decay': {
-            title: 'Trust Decay Rate',
+            title: 'Homeostatic Leak Rate (δ_S)',
             layer: 'Layer 7: Ecology',
-            description: 'Rate at which trust erodes between agents without positive interactions.',
-            science: 'Models forgetting and the need for ongoing relationship maintenance.',
-            parameters: ['Range: 0.0-0.01 per tick', 'Default: 0.001', 'Affects: Relationship maintenance']
+            description: 'Baseline-restoring leak rate δ_S in ΔS_t = r_t[λ⁺ε⁺ - λ⁻ε⁻] - δ_S(S_t - S_base).',
+            science: 'Controls geometric contraction toward S_base and sets the Z3-verified BIBO invariant bounds [S_base - λ⁻/δ_S, S_base + λ⁺/δ_S].',
+            citation: 'The General Theory of Trust v4.5 (Theorem M2 & Z3 Invariant Corridor).',
+            parameters: ['Range: 0.0 - 0.01 per tick', 'Default: 0.001', 'Affects: Master Law leak_delta δ_S']
         },
         'dial-reputation-threshold': {
             title: 'Reputation Threshold',
@@ -410,10 +421,10 @@ const ScientificInfo = (function() {
         },
         'dial-cloaking-ratio': {
             title: 'Visual Cloaking Ratio (χ)',
-            layer: 'Sim D16 & D21: Visual Cloaking',
+            layer: 'Sim D16 & D21: Perceptual Salience',
             description: 'Ratio of promotional headline visual salience to fine-print disclaimer salience.',
-            science: 'When χ > 1.5, Anterior Insula norm prediction error is suppressed by 58.1%-60.0%, creating a 38.9x vulnerability gradient.',
-            citation: 'Sim D16 & Sim D21 Meta TRIBE v2 fMRI forward encoding pipeline.'
+            science: 'When χ > 1.5, disclaimer discovery drops sharply for low-bandwidth cohorts (Sim D16 38.9x odds ratio), while Anterior Insula norm prediction error is attenuated in Sim D21 TRIBE v2 encoding.',
+            citation: 'Sim D16 & Sim D21 TRIBE v2 Forward-Encoding Models (TDF v4.5).'
         },
         'dial-music-tau': {
             title: 'Music Metric Hierarchy (τ)',

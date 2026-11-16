@@ -323,8 +323,14 @@ class MultiScaleEntropyAnalyzer:
         
         scales, values = zip(*valid)
         
-        # Simple trapezoidal integration
-        area = np.trapz(values, scales)
+        # Simple trapezoidal integration (NumPy 2.x compatible)
+        if hasattr(np, "trapezoid"):
+            area = float(np.trapezoid(values, scales))
+        elif hasattr(np, "trapz"):
+            area = float(np.trapz(values, scales))
+        else:
+            dx = np.diff(scales)
+            area = float(np.sum(0.5 * (np.asarray(values)[:-1] + np.asarray(values)[1:]) * dx))
         return area
     
     def analyze_population(

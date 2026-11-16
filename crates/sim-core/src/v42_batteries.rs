@@ -198,8 +198,8 @@ pub enum AssemblyMagnitude {
     SubMolecularPhysics = 3,        // Level 1: 10^-10 m (MA <= 5)
     MolecularDopamine = 8,          // Level 2: Dopamine MA = 8
     MolecularSerotonin = 11,        // Level 2: Serotonin MA = 11
-    MolecularAtp = 13,              // Level 2: ATP MA = 13
     MolecularCampRazor = 14,        // Level 2: cAMP MA = 14 (razor's edge)
+    MolecularAtp = 15,              // Level 2: ATP MA = 15 > cAMP MA = 14 (Correction #18)
     MolecularCortisol = 19,         // Level 2: Cortisol MA = 19
     MolecularOxytocin = 38,         // Level 2: Oxytocin MA = 38
     MacromolecularMemoryDarpp = 68, // Level 3: Phospho-Thr34 DARPP-32
@@ -338,5 +338,9 @@ mod tests {
             "intron_variant"
         ));
         assert!(verify_openneuro_ds003020_spec(985, 10_470));
+        assert!(
+            AssemblyMagnitude::MolecularAtp > AssemblyMagnitude::MolecularCampRazor,
+            "ATP (MA=15) must strictly exceed cAMP (MA=14) per Correction #18"
+        );
     }
 }

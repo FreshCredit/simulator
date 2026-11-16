@@ -188,6 +188,7 @@ pub fn create_router_with_config(
     let preset_routes = build_preset_routes();
     let sweep_routes = build_sweep_routes(&job_store, &executor_config);
     let experiment_routes = build_experiment_routes(&executor_config);
+    let battery_routes = build_battery_routes();
     let pde4b_routes = build_pde4b_routes();
     let neural_routes = build_neural_routes(&live_state);
     let ai_routes = build_ai_routes(&live_state);
@@ -223,6 +224,7 @@ pub fn create_router_with_config(
         .nest("/api", preset_routes)
         .nest("/api", sweep_routes)
         .nest("/api", experiment_routes)
+        .nest("/api", battery_routes)
         .nest("/api", pde4b_routes)
         .nest("/api", neural_routes)
         .nest("/api", ai_routes)
@@ -251,12 +253,14 @@ pub fn create_router_with_config(
 
 /// Builds the CORS layer for browser access (ENT-008 compliance).
 fn build_cors_layer() -> CorsLayer {
-    // Use ALLOWED_ORIGINS env var or default to safe localhost/production origins
+    // Use ALLOWED_ORIGINS env var or default to safe localhost and FreshCredit origins
     let allowed_origins: Vec<String> = std::env::var("ALLOWED_ORIGINS").map_or_else(
         |_| {
             vec![
                 "https://app.freshcredit.io".to_string(),
                 "https://staging.freshcredit.io".to_string(),
+                "http://localhost:3000".to_string(),
+                "http://localhost:8081".to_string(),
             ]
         },
         |s| s.split(',').map(|o| o.trim().to_string()).collect(),
@@ -270,10 +274,10 @@ fn build_cors_layer() -> CorsLayer {
         .collect();
 
     // BUILD-005 MARKER: Empty origins fallback implemented
-    // Ensure at least one origin is present (fallback for Cloud Run health checks)
+    // Ensure at least one origin is present (fallback for health checks)
     if origins.is_empty() {
         origins.push(axum::http::HeaderValue::from_static(
-            "https://app.freshcredit.io",
+            "http://localhost:3000",
         ));
     }
     // TAG: surface=simulation owner=platform-team rule=GENERAL-001
@@ -391,6 +395,16 @@ fn build_experiment_routes(executor_config: &ExecutorConfig) -> Router {
             get(crate::api::experiments::stream_progress),
         )
         .with_state(executor_config_arc)
+}
+
+/// Builds the `battery_routes` router (live sim-core mechanistic & protocol battery evaluators).
+fn build_battery_routes() -> Router {
+    Router::new()
+        .route("/batteries", get(crate::api::batteries::list_batteries))
+        .route(
+            "/batteries/:id/evaluate",
+            post(crate::api::batteries::evaluate_battery),
+        )
 }
 
 /// Builds the `pde4b_routes` router.

@@ -1297,3 +1297,22 @@ fn test_full_nine_layer_ablation_safety() {
         }
     }
 }
+
+#[test]
+fn test_update_trust_master_law_preserves_neutral_scale_fixed_point() {
+    let genome = Genome::default();
+    let mut agent = Agent::new(7u64, Position::new(10.0, 10.0, 0.0), genome, 0, Sex::Male);
+    agent.docas = DocasState::new([0.6, 0.7, 0.5, 0.5, 0.7]);
+    let before = agent.compute_trust();
+    let cfg = crate::master_law::MasterLawConfig::for_preset(
+        crate::master_law::MasterLawPreset::ProtocolAsymmetric,
+    );
+    // Neutral validation V_t = 0.50 (corresponding to tau = 1.0 on [0, 2]) must pull tau
+    // toward 1.0 (not drag it downward toward 0.50 via [0,2] vs [0,1] scale mismatch).
+    agent.update_trust_master_law(0.50, &cfg);
+    assert!(
+        agent.expectation > before && agent.expectation <= 1.001,
+        "Expected upward convergence toward canonical neutral tau=1.0 (before={before}, after={})",
+        agent.expectation
+    );
+}
