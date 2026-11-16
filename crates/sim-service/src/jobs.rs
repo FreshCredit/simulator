@@ -211,10 +211,27 @@ impl JobStore {
     ///
     /// Panics if preconditions are not met.
     pub fn add(&self, job: Job) {
+        const MAX_JOB_HISTORY: usize = 1000;
         let mut jobs = match self.jobs.write() {
             Ok(g) => g,
             Err(e) => e.into_inner(),
         };
+        if jobs.len() >= MAX_JOB_HISTORY {
+            if let Some(oldest_id) = jobs
+                .iter()
+                .filter(|(_, j)| {
+                    matches!(
+                        j.status,
+                        JobStatus::Complete | JobStatus::Failed | JobStatus::Cancelled
+                    )
+                })
+                .min_by_key(|(_, j)| j.created_at)
+                .or_else(|| jobs.iter().min_by_key(|(_, j)| j.created_at))
+                .map(|(k, _)| k.clone())
+            {
+                jobs.remove(&oldest_id);
+            }
+        }
         jobs.insert(job.id.clone(), job);
     }
 
@@ -300,19 +317,18 @@ pub async fn submit_job(
     State(state): State<JobState>,
     Json(request): Json<JobRequest>,
 ) -> impl IntoResponse {
-    // Validate request
-    if request.agent_count == 0 {
+    // Validate request parameters against resource bounds
+    if !(1..=100_000).contains(&request.agent_count)
+        || !(10..=10_000).contains(&request.max_ticks)
+        || request.stage > 5
+        || !(16..=512).contains(&request.grid_width)
+        || !(16..=512).contains(&request.grid_height)
+    {
         return (
             StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({"error": "agent_count must be > 0"})),
-        )
-            .into_response();
-    }
-
-    if request.stage > 5 {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({"error": "stage must be 0-5"})),
+            Json(serde_json::json!({
+                "error": "Parameter out of bounds (agent_count: 1..=100000, max_ticks: 10..=10000, stage: 0..=5, grid: 16..=512)"
+            })),
         )
             .into_response();
     }
@@ -345,6 +361,13 @@ pub async fn get_job_status(
     State(state): State<JobState>,
     Path(job_id): Path<String>,
 ) -> impl IntoResponse {
+    if !crate::artifacts::ArtifactStore::is_valid_run_id(&job_id) {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "Invalid job_id"})),
+        )
+            .into_response();
+    }
     if let Some(job) = state.store.get(&job_id) {
         info!("Returning status for job {}: {:?}", job_id, job.status);
         Json(job).into_response()
@@ -426,5 +449,41 @@ mod tests {
 
         let parsed: ParameterPreset = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed, ParameterPreset::NearExtinction);
+    }
+
+    #[tokio::test]
+    async fn test_submit_job_rejects_unbounded_params_and_evicts_history() {
+        let state = JobState {
+            store: Arc::new(JobStore::new()),
+            executor_config: ExecutorConfig::default(),
+        };
+        let huge_req = JobRequest {
+            agent_count: 500_000,
+            max_ticks: 100,
+            stage: 1,
+            seed: 1,
+            grid_width: 64,
+            grid_height: 64,
+            preset: ParameterPreset::Default,
+        };
+        let resp = submit_job(State(state.clone()), Json(huge_req))
+            .await
+            .into_response();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+        for i in 0..1050u64 {
+            let mut j = Job::new(JobRequest {
+                agent_count: 10,
+                max_ticks: 10,
+                stage: 0,
+                seed: i,
+                grid_width: 64,
+                grid_height: 64,
+                preset: ParameterPreset::Default,
+            });
+            j.status = JobStatus::Complete;
+            state.store.add(j);
+        }
+        assert!(state.store.list().len() <= 1000);
     }
 }

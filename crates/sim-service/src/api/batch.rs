@@ -162,9 +162,41 @@ pub async fn submit_batch(
     State(state): State<BatchState>,
     Json(request): Json<SubmitBatchRequest>,
 ) -> Result<(StatusCode, Json<SubmitBatchResponse>), StatusCode> {
+    const MAX_BATCH_EXPERIMENTS: usize = 50;
+    const MAX_BATCH_PARALLELISM: usize = 16;
+    const MAX_BATCH_STORE_ENTRIES: usize = 256;
+
+    let max_parallelism = request.max_parallelism.unwrap_or(4);
+    if request.experiments.is_empty()
+        || request.experiments.len() > MAX_BATCH_EXPERIMENTS
+        || !(1..=MAX_BATCH_PARALLELISM).contains(&max_parallelism)
+    {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let catalog_ids: std::collections::HashSet<String> = crate::api::catalog::experiment_catalog()
+        .into_iter()
+        .map(|e| e.id)
+        .collect();
+
+    for exp in &request.experiments {
+        let agents = exp.agents.unwrap_or(1000);
+        let ticks = exp.ticks.unwrap_or(365);
+        let replications = exp.replications.unwrap_or(10);
+        let variance = exp.pde4b_variance.as_deref().unwrap_or("medium");
+        if !catalog_ids.contains(&exp.experiment_id)
+            || !(1..=100_000).contains(&agents)
+            || !(10..=10_000).contains(&ticks)
+            || !(1..=10_000).contains(&replications)
+            || !matches!(variance, "zero" | "low" | "medium" | "high")
+        {
+            return Err(StatusCode::BAD_REQUEST);
+        }
+    }
+
     info!(
         experiment_count = request.experiments.len(),
-        max_parallelism = request.max_parallelism.unwrap_or(4),
+        max_parallelism = max_parallelism,
         "Submitting batch execution"
     );
 
@@ -175,7 +207,7 @@ pub async fn submit_batch(
 
     // Create batch config
     let batch_config = BatchConfig {
-        max_parallelism: request.max_parallelism.unwrap_or(4),
+        max_parallelism,
         executor_config: (*state.config).clone(),
         continue_on_error: request.continue_on_error.unwrap_or(true),
         progress_interval_secs: 5,
@@ -188,11 +220,18 @@ pub async fn submit_batch(
     let handle = executor.execute_batch(batch_id.clone(), tasks).await;
 
     // Estimate duration (rough heuristic)
-    let estimated_duration_secs =
-        60.0 * total_tasks as f64 / request.max_parallelism.unwrap_or(4) as f64;
+    let estimated_duration_secs = 60.0 * total_tasks as f64 / max_parallelism as f64;
 
-    // Store handle
-    state.store.lock().await.insert(batch_id.clone(), handle);
+    // Store handle with bounded capacity eviction
+    {
+        let mut store_guard = state.store.lock().await;
+        if store_guard.len() >= MAX_BATCH_STORE_ENTRIES {
+            if let Some(evict_key) = store_guard.keys().next().cloned() {
+                store_guard.remove(&evict_key);
+            }
+        }
+        store_guard.insert(batch_id.clone(), handle);
+    }
 
     let response = SubmitBatchResponse {
         batch_id: batch_id.clone(),
@@ -409,5 +448,45 @@ mod tests {
         let state = test_batch_state();
         let response = list_active_batches(State(state)).await;
         assert!(response.0.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_submit_batch_rejects_zero_parallelism_and_unknown_experiment() {
+        let state = test_batch_state();
+        let zero_par = SubmitBatchRequest {
+            experiments: vec![ExperimentTaskRequest {
+                experiment_id: "lambda-universality".to_string(),
+                agents: Some(100),
+                ticks: Some(50),
+                replications: Some(1),
+                seed: Some(1),
+                pde4b_variance: None,
+            }],
+            max_parallelism: Some(0),
+            continue_on_error: Some(true),
+        };
+        assert_eq!(
+            submit_batch(State(state.clone()), Json(zero_par))
+                .await
+                .unwrap_err(),
+            StatusCode::BAD_REQUEST
+        );
+
+        let bad_exp = SubmitBatchRequest {
+            experiments: vec![ExperimentTaskRequest {
+                experiment_id: "nonexistent-exp".to_string(),
+                agents: Some(100),
+                ticks: Some(50),
+                replications: Some(1),
+                seed: Some(1),
+                pde4b_variance: None,
+            }],
+            max_parallelism: Some(2),
+            continue_on_error: Some(true),
+        };
+        assert_eq!(
+            submit_batch(State(state), Json(bad_exp)).await.unwrap_err(),
+            StatusCode::BAD_REQUEST
+        );
     }
 }

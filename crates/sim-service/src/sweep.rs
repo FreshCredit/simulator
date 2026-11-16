@@ -112,23 +112,40 @@ pub struct SweepState {
     pub executor_config: ExecutorConfig,
 }
 
+const MAX_SWEEP_RUNS: usize = 64;
+
 /// Submit a parameter sweep
-/// Per P2-8: Creates multiple simulation jobs from parameter combinations
+/// Per P2-8: Creates and spawns simulation jobs from parameter combinations
 pub async fn submit_sweep(
     State(state): State<SweepState>,
     Json(request): Json<SweepRequest>,
 ) -> impl IntoResponse {
+    if !(1..=100_000).contains(&request.base_config.agent_count)
+        || !(10..=10_000).contains(&request.base_config.max_ticks)
+        || request.base_config.stage > 5
+        || !(16..=512).contains(&request.base_config.grid_width)
+        || !(16..=512).contains(&request.base_config.grid_height)
+    {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": "Sweep base_config parameter out of bounds"
+            })),
+        )
+            .into_response();
+    }
+
     let sweep_id = Uuid::new_v4().to_string();
     let mut job_ids = Vec::new();
 
     // Generate all parameter combinations
     let runs = generate_sweep_runs(&request);
 
-    if runs.is_empty() {
+    if runs.is_empty() || runs.len() > MAX_SWEEP_RUNS {
         return (
             StatusCode::BAD_REQUEST,
             Json(serde_json::json!({
-                            "error": "No runs generated. Provide at least one seed.",
+                            "error": format!("Sweep must produce 1..={MAX_SWEEP_RUNS} runs (got {})", runs.len()),
             // TAG: surface=simulation owner=platform-team rule=GENERAL-001
                             "sweep_id": sweep_id
                         })),
@@ -136,7 +153,7 @@ pub async fn submit_sweep(
             .into_response();
     }
 
-    // Create jobs for each run
+    // Create and dispatch jobs for each run
     for (seed, preset, _toggle_set_name) in &runs {
         let job_request = JobRequest {
             agent_count: request.base_config.agent_count,
@@ -152,8 +169,13 @@ pub async fn submit_sweep(
         let job = Job::new(job_request);
         job_ids.push(job.id.clone());
 
-        // Queue job in store
-        state.job_store.add(job);
+        // Queue job in store and dispatch execution via bounded executor semaphore
+        state.job_store.add(job.clone());
+        crate::executor::spawn_job_execution(
+            job,
+            state.job_store.clone(),
+            state.executor_config.clone(),
+        );
     }
 
     // TAG: surface=simulation owner=research-team rule=SIM-001
@@ -169,7 +191,7 @@ pub async fn submit_sweep(
         .into_response()
 }
 
-/// Generate all runs from sweep parameters
+/// Generate all runs from sweep parameters (expands seeds x presets x toggle_sets)
 fn generate_sweep_runs(request: &SweepRequest) -> Vec<(u64, ParameterPreset, String)> {
     let mut runs = Vec::new();
 
@@ -179,9 +201,25 @@ fn generate_sweep_runs(request: &SweepRequest) -> Vec<(u64, ParameterPreset, Str
         request.sweep_params.presets.clone()
     };
 
+    let toggle_names: Vec<String> = if request.sweep_params.toggle_sets.is_empty() {
+        vec!["default".to_string()]
+    } else {
+        request
+            .sweep_params
+            .toggle_sets
+            .iter()
+            .map(|t| t.name.clone())
+            .collect()
+    };
+
     for seed in &request.sweep_params.seeds {
         for preset in &presets {
-            runs.push((*seed, *preset, "default".to_string()));
+            for toggle_name in &toggle_names {
+                runs.push((*seed, *preset, toggle_name.clone()));
+                if runs.len() > MAX_SWEEP_RUNS {
+                    return runs;
+                }
+            }
         }
     }
 
@@ -234,18 +272,30 @@ pub async fn get_sweep_status(
     axum::extract::Path(sweep_id): axum::extract::Path<String>,
     axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
 ) -> impl IntoResponse {
-    // Get job IDs from query parameter (comma-separated)
+    if !crate::artifacts::ArtifactStore::is_valid_run_id(&sweep_id) {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "Invalid sweep_id"})),
+        )
+            .into_response();
+    }
+    // Get job IDs from query parameter (comma-separated, capped to MAX_SWEEP_RUNS)
     let job_ids: Vec<String> = params
         .get("jobs")
-        .map(|s| s.split(',').map(std::string::ToString::to_string).collect())
+        .map(|s| {
+            s.split(',')
+                .take(MAX_SWEEP_RUNS + 1)
+                .map(std::string::ToString::to_string)
+                .collect()
+        })
         .unwrap_or_default();
 
-    if job_ids.is_empty() {
+    if job_ids.is_empty() || job_ids.len() > MAX_SWEEP_RUNS {
         return (
             StatusCode::BAD_REQUEST,
             Json(serde_json::json!({
             // TAG: surface=simulation owner=platform-team rule=GENERAL-001
-                            "error": "No job IDs provided. Use ?jobs=id1,id2,id3"
+                            "error": "Provide 1..=64 job IDs via ?jobs=id1,id2,id3"
                         })),
         )
             .into_response();
@@ -305,4 +355,72 @@ pub async fn get_sweep_status(
         }),
     )
         .into_response()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_generate_sweep_runs_expands_toggle_sets_and_caps() {
+        let req = SweepRequest {
+            base_config: SweepBaseConfig {
+                agent_count: 100,
+                max_ticks: 100,
+                stage: 2,
+                grid_width: 64,
+                grid_height: 64,
+            },
+            sweep_params: SweepParams {
+                seeds: vec![1, 2],
+                presets: vec![ParameterPreset::Default, ParameterPreset::NearExtinction],
+                toggle_sets: vec![
+                    ToggleSet {
+                        name: "t1".to_string(),
+                        genome_enabled: true,
+                        docas_enabled: true,
+                        dmn_enabled: false,
+                        choice_architecture_enabled: false,
+                        protocol_enabled: false,
+                    },
+                    ToggleSet {
+                        name: "t2".to_string(),
+                        genome_enabled: true,
+                        docas_enabled: true,
+                        dmn_enabled: true,
+                        choice_architecture_enabled: true,
+                        protocol_enabled: true,
+                    },
+                ],
+            },
+            max_concurrent: 2,
+        };
+        let runs = generate_sweep_runs(&req);
+        assert_eq!(runs.len(), 8);
+    }
+
+    #[tokio::test]
+    async fn test_submit_sweep_dispatches_and_rejects_excessive_runs() {
+        let state = SweepState {
+            job_store: Arc::new(JobStore::new()),
+            executor_config: ExecutorConfig::default(),
+        };
+        let req = SweepRequest {
+            base_config: SweepBaseConfig {
+                agent_count: 100,
+                max_ticks: 100,
+                stage: 1,
+                grid_width: 64,
+                grid_height: 64,
+            },
+            sweep_params: SweepParams {
+                seeds: (0..100).collect(),
+                presets: vec![],
+                toggle_sets: vec![],
+            },
+            max_concurrent: 2,
+        };
+        let resp = submit_sweep(State(state), Json(req)).await.into_response();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    }
 }

@@ -72,6 +72,10 @@ pub async fn get_run_insights(
 ) -> Result<Json<ArtifactInsightResponse>, axum::http::StatusCode> {
     use chrono::Utc;
 
+    if !ArtifactStore::is_valid_run_id(&run_id) {
+        return Err(axum::http::StatusCode::BAD_REQUEST);
+    }
+
     // Load manifest from artifact store
     let Some(manifest) = state.artifact_store.load_manifest(&run_id).await else {
         tracing::warn!("Run {} not found for analysis", run_id);
@@ -149,6 +153,15 @@ pub async fn query_artifact(
     Json(request): Json<ArtifactQueryRequest>,
 ) -> Result<Json<ArtifactInsightResponse>, axum::http::StatusCode> {
     use chrono::Utc;
+
+    const MAX_QUESTION_LEN: usize = 4000;
+    let question = request.question.trim();
+    if !ArtifactStore::is_valid_run_id(&run_id)
+        || question.is_empty()
+        || question.len() > MAX_QUESTION_LEN
+    {
+        return Err(axum::http::StatusCode::BAD_REQUEST);
+    }
 
     // Load manifest
     let Some(manifest) = state.artifact_store.load_manifest(&run_id).await else {
@@ -240,6 +253,10 @@ pub async fn get_metrics_insights(
 ) -> Result<Json<ArtifactInsightResponse>, axum::http::StatusCode> {
     use chrono::Utc;
 
+    if !ArtifactStore::is_valid_run_id(&run_id) {
+        return Err(axum::http::StatusCode::BAD_REQUEST);
+    }
+
     // Load metrics
     let Some(metrics) = state.artifact_store.load_metrics(&run_id).await else {
         return Err(axum::http::StatusCode::NOT_FOUND);
@@ -289,5 +306,31 @@ pub async fn get_metrics_insights(
             tracing::error!("Gemini API error: {}", e);
             Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_analysis_rejects_traversal_run_id_and_oversized_question() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AnalysisState::new(
+            Arc::new(ArtifactStore::new(dir.path().to_path_buf())),
+            Arc::new(AiState::disabled()),
+        );
+        let res_bad_id = get_run_insights(Path("../etc".to_string()), State(state.clone())).await;
+        assert_eq!(res_bad_id.unwrap_err(), axum::http::StatusCode::BAD_REQUEST);
+
+        let res_big_q = query_artifact(
+            Path("valid-run".to_string()),
+            State(state),
+            Json(ArtifactQueryRequest {
+                question: "x".repeat(5000),
+            }),
+        )
+        .await;
+        assert_eq!(res_big_q.unwrap_err(), axum::http::StatusCode::BAD_REQUEST);
     }
 }
