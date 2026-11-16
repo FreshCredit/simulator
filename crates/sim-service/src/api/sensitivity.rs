@@ -31,24 +31,76 @@ impl Default for SensitivityState {
     }
 }
 
-// Helper function to create a simple model for demo purposes
+// Real nonlinear `sim-core` Master Stability Law trajectory evaluator (replaces linear toy sum).
 fn create_model(output_name: String) -> impl Fn(&HashMap<String, f64>) -> HashMap<String, f64> {
     move |inputs: &HashMap<String, f64>| -> HashMap<String, f64> {
-        let mut outputs = HashMap::new();
-        let mut sorted_keys: Vec<&String> = inputs.keys().collect();
-        sorted_keys.sort();
-        let mut y = 0.0;
-        for name in sorted_keys {
-            let value = inputs.get(name).copied().unwrap_or(0.0);
-            let coeff = match name.as_str() {
-                "learning_rate" => 2.0,
-                "mutation_rate" => 1.5,
-                "population_size" => 0.5,
-                _ => 1.0,
+        let mut cfg = sim_core::master_law::MasterLawConfig::for_preset(
+            sim_core::master_law::MasterLawPreset::ProtocolAsymmetric,
+        );
+        cfg.lambda_plus = inputs
+            .get("lambda_plus")
+            .copied()
+            .or_else(|| inputs.get("learning_rate").map(|v| v * 0.25))
+            .unwrap_or(0.05)
+            .clamp(0.0, 1.0);
+        cfg.lambda_minus = inputs
+            .get("lambda_minus")
+            .copied()
+            .or_else(|| inputs.get("mutation_rate").map(|v| v * 0.50))
+            .unwrap_or(0.25)
+            .clamp(0.0, 1.0);
+        cfg.leak_delta = inputs
+            .get("leak_delta")
+            .copied()
+            .or_else(|| inputs.get("selection_pressure").map(|v| v * 0.05))
+            .unwrap_or(0.02)
+            .clamp(1e-4, 1.0);
+        cfg.s_base = inputs
+            .get("s_base")
+            .copied()
+            .unwrap_or(0.50)
+            .clamp(0.0, 1.0);
+        cfg.scale_s_d = inputs
+            .get("scale_s_d")
+            .copied()
+            .unwrap_or(1.0)
+            .clamp(0.1, 10.0);
+        cfg.recognition_gate = inputs
+            .get("recognition_gate")
+            .copied()
+            .unwrap_or(1.0)
+            .clamp(0.0, 1.0);
+        let shock_amp = inputs
+            .get("shock_amplitude")
+            .copied()
+            .or_else(|| {
+                inputs
+                    .get("population_size")
+                    .map(|v| (v / 500.0).clamp(0.1, 1.0))
+            })
+            .unwrap_or(0.85)
+            .clamp(0.05, 1.0);
+
+        let mut s = cfg.s_base;
+        let mut sum_s = 0.0;
+        for step in 0..48 {
+            let (v, e) = if step < 16 {
+                (0.66, 0.50)
+            } else if step < 28 {
+                (0.50 - 0.35 * shock_amp, 0.72)
+            } else {
+                (0.58, 0.50)
             };
-            y += coeff * value;
+            s = cfg.step_with_signals(s, v, e).clamp(0.0, 1.0);
+            sum_s += s;
         }
-        outputs.insert(output_name.clone(), y);
+        let mean_s = sum_s / 48.0;
+        let metric_val = match output_name.as_str() {
+            "recovery_auc" | "mean_trust" => mean_s,
+            _ => s,
+        };
+        let mut outputs = HashMap::new();
+        outputs.insert(output_name.clone(), metric_val);
         outputs
     }
 }
@@ -492,6 +544,63 @@ mod tests {
         }];
         let tau = compute_kendall_tau(&ranks1, &ranks1);
         assert_eq!(tau, 0.0);
+    }
+
+    #[tokio::test]
+    async fn test_sobol_master_law_exhibits_nonzero_nonlinear_interactions() {
+        let params = vec![
+            SensitivityParameter {
+                name: "lambda_plus".to_string(),
+                param_type: ParameterType::Continuous,
+                baseline: 0.15,
+                lower: 0.02,
+                upper: 0.60,
+                distribution: DistributionType::Uniform,
+            },
+            SensitivityParameter {
+                name: "lambda_minus".to_string(),
+                param_type: ParameterType::Continuous,
+                baseline: 0.40,
+                lower: 0.05,
+                upper: 0.95,
+                distribution: DistributionType::Uniform,
+            },
+            SensitivityParameter {
+                name: "shock_amplitude".to_string(),
+                param_type: ParameterType::Continuous,
+                baseline: 0.60,
+                lower: 0.10,
+                upper: 1.00,
+                distribution: DistributionType::Uniform,
+            },
+        ];
+        let req = SobolAnalysisRequest {
+            config: SobolConfig {
+                n: 256,
+                calc_second_order: false,
+                num_bootstrap: 0,
+            },
+            parameters: params,
+            output: "final_trust".to_string(),
+            seed: Some(42),
+        };
+        let res = run_sobol_analysis(Json(req)).await.unwrap().0;
+        let out_res = res.output_results.get("final_trust").unwrap();
+        // Nonlinear clamped Master Law has R^2 = sum(S1) < 1.0 (nonzero interaction variance 1 - sum(S1) > 0)
+        // and distinct ST vs S1 indices in parameter_indices.
+        let r2 = out_res.r_squared.unwrap_or(1.0);
+        let max_diff = ["lambda_plus", "lambda_minus", "shock_amplitude"]
+            .iter()
+            .filter_map(|p| {
+                let s1 = out_res.parameter_indices.get(&format!("{p}_S1"))?.value;
+                let st = out_res.parameter_indices.get(*p)?.value;
+                Some((st - s1).abs())
+            })
+            .fold(0.0, f64::max);
+        assert!(
+            max_diff > 1e-3 || r2 < 0.999,
+            "Real clamped Master Law must exhibit nonzero Sobol interaction (max|ST-S1|={max_diff}, r2={r2})"
+        );
     }
 }
 

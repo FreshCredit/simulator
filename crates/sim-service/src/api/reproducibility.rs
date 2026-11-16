@@ -26,22 +26,49 @@ pub async fn check_reproducibility(
     }
     tokio::task::spawn_blocking(move || {
         let mut replications = Vec::with_capacity(request.config.n_replications);
+        let cfg = sim_core::master_law::MasterLawConfig::for_preset(
+            sim_core::master_law::MasterLawPreset::ProtocolAsymmetric,
+        );
 
         for i in 0..request.config.n_replications {
             let seed = request.config.base_seed.wrapping_add(i as u64);
+            let mut z = seed ^ 0x9e37_79b9_7f4a_7c15;
+            let mut next_u = || -> f64 {
+                z = z.wrapping_add(0x9e37_79b9_7f4a_7c15);
+                let mut x = z;
+                x = (x ^ (x >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+                x = (x ^ (x >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+                x ^= x >> 31;
+                ((x >> 11) as f64) / ((1u64 << 53) as f64)
+            };
 
-            // Synthetic results with some noise
-            let noise: f64 = (i as f64 - request.config.n_replications as f64 / 2.0) * 0.02;
+            let mut s = cfg.s_base;
+            let mut traj = Vec::with_capacity(48);
+            for t in 0..48 {
+                let shock = if (16..24).contains(&t) { -0.35 } else { 0.0 };
+                let v = (0.55 + shock + (next_u() - 0.5) * 0.25).clamp(0.0, 1.0);
+                s = cfg.step_with_signals(s, v, 0.50).clamp(0.0, 1.0);
+                traj.push(s);
+            }
+            let mean_s = traj.iter().sum::<f64>() / traj.len() as f64;
+            let var_s = traj.iter().map(|&v| (v - mean_s).powi(2)).sum::<f64>() / traj.len() as f64;
+            let recovered_step = traj
+                .iter()
+                .enumerate()
+                .skip(24)
+                .find(|(_, &v)| (v - cfg.s_base).abs() < 0.08)
+                .map_or(48.0, |(idx, _)| idx as f64);
+
             let mut metrics = HashMap::new();
-            metrics.insert("fitness".to_string(), 0.85 + noise);
-            metrics.insert("convergence_time".to_string(), 100.0 + noise * 100.0);
-            metrics.insert("diversity".to_string(), 0.45 + noise * 0.5);
+            metrics.insert("fitness".to_string(), s);
+            metrics.insert("convergence_time".to_string(), recovered_step);
+            metrics.insert("diversity".to_string(), var_s.sqrt());
 
             replications.push(ReplicationResult {
                 index: i,
                 seed,
                 metrics,
-                execution_time_secs: 1.0,
+                execution_time_secs: 0.001,
                 success: true,
                 error: None,
             });
@@ -66,25 +93,38 @@ pub async fn analyze_seed_sensitivity(
         return Err(StatusCode::PAYLOAD_TOO_LARGE);
     }
     tokio::task::spawn_blocking(move || {
-        let config = ReproducibilityConfig::default();
-        let _analyzer = StabilityAnalyzer::new(config);
-
-        let base_result = {
+        let cfg = sim_core::master_law::MasterLawConfig::for_preset(
+            sim_core::master_law::MasterLawPreset::ProtocolAsymmetric,
+        );
+        let run_seeded = |seed: u64| -> HashMap<String, f64> {
+            let mut z = seed ^ 0x9e37_79b9_7f4a_7c15;
+            let mut next_u = || -> f64 {
+                z = z.wrapping_add(0x9e37_79b9_7f4a_7c15);
+                let mut x = z;
+                x = (x ^ (x >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+                x = (x ^ (x >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+                x ^= x >> 31;
+                ((x >> 11) as f64) / ((1u64 << 53) as f64)
+            };
+            let mut s = cfg.s_base;
+            let mut sum_s = 0.0;
+            for _ in 0..48 {
+                let v = (0.55 + (next_u() - 0.5) * 0.10).clamp(0.0, 1.0);
+                s = cfg.step_with_signals(s, v, 0.50).clamp(0.0, 1.0);
+                sum_s += s;
+            }
             let mut m = HashMap::new();
-            m.insert("metric1".to_string(), 100.0);
-            m.insert("metric2".to_string(), 50.0);
+            m.insert("metric1".to_string(), s);
+            m.insert("metric2".to_string(), sum_s / 48.0);
             m
         };
+
+        let base_result = run_seeded(request.base_seed);
 
         let mut perturbed_results = Vec::with_capacity(request.n_seeds);
         for i in 0..request.n_seeds {
             let seed = request.base_seed.wrapping_add(i as u64);
-            let noise = ((seed as f64) % 10.0) / 100.0;
-
-            let mut m = HashMap::new();
-            m.insert("metric1".to_string(), 100.0 + noise);
-            m.insert("metric2".to_string(), 50.0 + noise * 0.5);
-            perturbed_results.push(m);
+            perturbed_results.push(run_seeded(seed));
         }
 
         let mut max_deviation = HashMap::new();
