@@ -152,8 +152,13 @@ pub struct AiChatMeta {
 /// Uses Gemini when available, falls back to mock responses
 pub async fn ai_chat(
     State(state): State<LiveSimulationState>,
-    axum::Json(request): axum::Json<AiChatRequest>,
+    axum::Json(mut request): axum::Json<AiChatRequest>,
 ) -> axum::Json<AiChatResponse> {
+    if request.message.len() > 8_192 {
+        request
+            .message
+            .truncate(request.message.floor_char_boundary(8_192));
+    }
     let conversation_id = request.conversation_id.unwrap_or_else(|| {
         format!(
             "conv-{}",
@@ -205,8 +210,8 @@ pub async fn ai_chat(
                 });
             }
 
-            // Limit events based on request
-            let max_events = request.context_frames.unwrap_or(10);
+            // Limit events based on request (clamped to <= 50)
+            let max_events = request.context_frames.unwrap_or(10).clamp(1, 50);
             if events.len() > max_events {
                 events.into_iter().rev().take(max_events).rev().collect()
             } else {

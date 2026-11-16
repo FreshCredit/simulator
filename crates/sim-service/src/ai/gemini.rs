@@ -226,6 +226,7 @@ impl GeminiConfig {
 
         let endpoint = std::env::var("GEMINI_ENDPOINT")
             .unwrap_or_else(|_| "https://generativelanguage.googleapis.com/v1beta".to_string());
+        validate_gemini_endpoint(&endpoint)?;
 
         let timeout_secs = std::env::var("GEMINI_TIMEOUT_SECS")
             .ok()
@@ -239,6 +240,19 @@ impl GeminiConfig {
             timeout_secs,
         })
     }
+}
+
+fn validate_gemini_endpoint(endpoint: &str) -> Result<(), GeminiError> {
+    let parsed = reqwest::Url::parse(endpoint)
+        .map_err(|e| GeminiError::ApiError(format!("Invalid GEMINI_ENDPOINT URL: {e}")))?;
+    let host = parsed.host_str().unwrap_or("");
+    let is_local = host == "localhost" || host == "127.0.0.1" || host == "::1";
+    if parsed.scheme() != "https" && !(parsed.scheme() == "http" && is_local) {
+        return Err(GeminiError::ApiError(
+            "GEMINI_ENDPOINT must use https:// (or http://localhost for local tests)".to_string(),
+        ));
+    }
+    Ok(())
 }
 
 // TAG: surface=simulation owner=research-team rule=SIM-001
@@ -291,6 +305,7 @@ impl SimGeminiService {
         system_instruction: Option<SystemInstruction>,
         config: Option<GenerationConfig>,
     ) -> Result<GeminiResponse, GeminiError> {
+        validate_gemini_endpoint(&self.config.endpoint)?;
         if !self
             .config
             .model
@@ -338,8 +353,14 @@ impl SimGeminiService {
             )));
         }
 
-        let gemini_response: GeminiResponse =
-            response.json().await.map_err(GeminiError::RequestFailed)?;
+        let body_text = crate::http_client::read_bounded_text(
+            response,
+            crate::http_client::DEFAULT_MAX_RESPONSE_BYTES,
+        )
+        .await
+        .map_err(|e| GeminiError::ApiError(format!("Response body exceeded limit: {e}")))?;
+        let gemini_response: GeminiResponse = serde_json::from_str(&body_text)
+            .map_err(|e| GeminiError::ApiError(format!("Invalid Gemini JSON: {e}")))?;
 
         Ok(gemini_response)
     }
@@ -524,5 +545,16 @@ mod tests {
         let debug_str = format!("{config:?}");
         assert!(!debug_str.contains("gemini_secret_api_key_xyz"));
         assert!(debug_str.contains("[REDACTED]"));
+    }
+
+    #[test]
+    fn test_validate_gemini_endpoint_blocks_cleartext_remote() {
+        assert!(
+            validate_gemini_endpoint("https://generativelanguage.googleapis.com/v1beta").is_ok()
+        );
+        assert!(validate_gemini_endpoint("http://localhost:8080").is_ok());
+        assert!(validate_gemini_endpoint("http://127.0.0.1:9000").is_ok());
+        assert!(validate_gemini_endpoint("http://169.254.169.254/latest").is_err());
+        assert!(validate_gemini_endpoint("http://evil.example.com/steal").is_err());
     }
 }

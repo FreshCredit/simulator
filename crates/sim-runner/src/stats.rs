@@ -178,10 +178,36 @@ pub fn gini_coefficient(values: &[f64]) -> f64 {
     (rank_sum / (n_f * sum)).clamp(0.0, 1.0)
 }
 
+/// Exact two-sided 95% Student-t critical value t_{0.975, df} with smooth Cornish-Fisher tail.
+#[must_use]
+fn student_t_975_crit(df: usize) -> f64 {
+    match df {
+        0 => 1.959_963_984_540_054,
+        1 => 12.706_204_736_432_095,
+        2 => 4.302_652_729_911_275,
+        3 => 3.182_446_305_284_263,
+        4 => 2.776_445_105_197_798_7,
+        5 => 2.570_581_836_614_739_5,
+        6 => 2.446_911_848_791_680_6,
+        7 => 2.364_624_251_010_299_3,
+        8 => 2.306_004_135_033_370_4,
+        9 => 2.262_157_162_740_991_5,
+        10 => 2.228_138_851_964_938_5,
+        _ => {
+            // Cornish-Fisher expansion (exact to < 1e-5 for all df >= 11)
+            let nu = df as f64;
+            let z = 1.959_963_984_540_054_f64;
+            let z3 = z.powi(3);
+            let z5 = z.powi(5);
+            z + (z3 + z) / (4.0 * nu) + (5.0 * z5 + 16.0 * z3 + 3.0 * z) / (96.0 * nu * nu)
+        }
+    }
+}
+
 /// Cohen's d effect size with 95% confidence interval
 ///
 /// d = (μ₁ - μ₂) / `s_pooled`
-/// `SE_d` = √((n₁+n₂)/(n₁n₂) + d²/(2(n₁+n₂)))
+/// `SE_d` = √((n₁+n₂)/(n₁n₂) + d²/(2(n₁+n₂-2))) (Hedges & Olkin 1985)
 ///
 /// Returns (d, `ci_lower`, `ci_upper`)
 ///
@@ -224,14 +250,14 @@ pub fn cohens_d_with_ci(group1: &[f64], group2: &[f64]) -> (f64, f64, f64) {
     // Cohen's d
     let d = (mean1 - mean2) / s_pooled;
 
-    // Standard error of d
-    let se_d = ((n1 + n2) / (n1 * n2) + (d * d) / (2.0 * (n1 + n2))).sqrt();
+    // Hedges & Olkin (1985) unbiased df denominator 2*(n1+n2-2) with Student-t critical value
+    let df = clean1.len() + clean2.len() - 2;
+    let se_d = ((n1 + n2) / (n1 * n2) + (d * d) / (2.0 * (df as f64))).sqrt();
 
     // TAG: surface=simulation owner=research-team rule=SIM-001
-    // 95% CI (z = 1.96)
-    let z = 1.96;
-    let ci_lower = d - z * se_d;
-    let ci_upper = d + z * se_d;
+    let t_crit = student_t_975_crit(df);
+    let ci_lower = d - t_crit * se_d;
+    let ci_upper = d + t_crit * se_d;
 
     (d, ci_lower, ci_upper)
 }
@@ -325,7 +351,7 @@ pub fn pearson_r(x: &[f64], y: &[f64]) -> f64 {
     }
     // TAG: surface=simulation owner=research-team rule=SIM-001
 
-    cov / denom
+    (cov / denom).clamp(-1.0, 1.0)
 }
 
 /// Fisher Z transformation with confidence interval
@@ -406,8 +432,8 @@ pub fn mean_with_ci(values: &[f64]) -> (f64, f64, f64) {
     let m = mean(&clean);
     let s = std_dev(&clean);
     let se = s / (clean.len() as f64).sqrt();
-    let z = 1.96;
-    (m, m - z * se, m + z * se)
+    let t_crit = student_t_975_crit(clean.len() - 1);
+    (m, m - t_crit * se, m + t_crit * se)
     // TAG: surface=simulation owner=research-team rule=SIM-001
 }
 
@@ -801,6 +827,17 @@ mod tests {
         assert!((m - 3.0).abs() < 1e-10);
         assert!(ci_low < 3.0);
         assert!(ci_high > 3.0);
+
+        // Exact small-sample Student-t(df=1) CI check: [0, 2] -> mean=1, se=1, t_{0.975,1}=12.7062
+        let two = vec![0.0, 2.0];
+        let (m2, l2, u2) = mean_with_ci(&two);
+        assert!((m2 - 1.0).abs() < 1e-12);
+        assert!(((u2 - l2) / 2.0 - 12.706_204_7).abs() < 1e-5);
+
+        // Collinear floating-point inputs must never exceed [-1.0, 1.0]
+        let x = vec![1e12, 2e12, 3e12, 4e12];
+        let r = pearson_r(&x, &x);
+        assert!((-1.0..=1.0).contains(&r));
     }
 
     #[test]
