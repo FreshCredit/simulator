@@ -296,6 +296,9 @@ pub fn create_router_with_config_and_key(
         .nest("/api", research_routes)
         .nest("/api", docas_routes)
         .merge(ws_routes)
+        .layer(tower_governor::GovernorLayer {
+            config: Arc::new(crate::rate_limit::Tier::Internal.config()),
+        })
         .layer(axum::middleware::from_fn_with_state(
             api_key,
             sim_service_auth_middleware,
@@ -1026,5 +1029,36 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(auth_resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_governor_rate_limit_blocks_flood_even_with_spoofed_xff_or_api_key() {
+        let dir = tempdir().unwrap();
+        let app = create_router(dir.path().to_path_buf());
+
+        let mut hit_429 = false;
+        for i in 0..60 {
+            let resp = app
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .uri("/api/presets")
+                        .header("x-api-key", format!("spoofed-key-{i}"))
+                        .header("x-forwarded-for", format!("9.9.9.{i}, 198.51.100.99"))
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            if resp.status() == StatusCode::TOO_MANY_REQUESTS {
+                hit_429 = true;
+                break;
+            }
+            assert_eq!(resp.status(), StatusCode::OK);
+        }
+        assert!(
+            hit_429,
+            "GovernorLayer must enforce 429 on flood from same rightmost peer"
+        );
     }
 }

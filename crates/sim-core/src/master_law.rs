@@ -148,7 +148,14 @@ impl MasterLawConfig {
         let v = i128::from(v_fixed);
         let e = i128::from(e_fixed);
         let r = i128::from(r_fixed);
-        let eps = v - e;
+        let s_d_fixed = (self.scale_s_d.max(1e-4) * (FIXED_SCALE as f64))
+            .round()
+            .max(1.0) as i128;
+        let eps = if s_d_fixed == FIXED_SCALE {
+            v - e
+        } else {
+            ((v - e) * FIXED_SCALE).div_euclid(s_d_fixed)
+        };
         let (eps_p, eps_n) = if eps >= 0 { (eps, 0) } else { (0, -eps) };
         let q_d = ((lp * eps_p - ln * eps_n) * r).div_euclid(FIXED_SCALE * FIXED_SCALE);
         let q_l = (delta * (s - s_base)).div_euclid(FIXED_SCALE);
@@ -386,5 +393,25 @@ mod tests {
         assert_eq!(s2, 0);
         let s3 = cfg.step_fixed_i64(430_802_000, 500_000_000, 500_000_000, 1_000_000_000);
         assert_eq!(s3, 431_493_980);
+    }
+
+    #[test]
+    fn test_step_fixed_i64_respects_non_unit_scale_s_d() {
+        let cfg = MasterLawConfig {
+            preset: MasterLawPreset::Custom,
+            lambda_plus: 0.228,
+            lambda_minus: 0.912,
+            recognition_gate: 1.0,
+            leak_delta: 0.010,
+            s_base: 0.500,
+            scale_s_d: 2.0,
+            corrective_bandwidth_mu: 1.0,
+        };
+        let s_float = cfg.step_with_signals(0.500, 0.850, 0.500).clamp(0.0, 1.0);
+        let s_fixed = cfg.step_fixed_i64(500_000_000, 850_000_000, 500_000_000, 1_000_000_000);
+        assert!(
+            (s_float - (s_fixed as f64) / 1_000_000_000.0).abs() < 1e-8,
+            "float={s_float}, fixed={s_fixed}"
+        );
     }
 }

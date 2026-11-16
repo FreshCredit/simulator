@@ -139,18 +139,40 @@ impl KeyExtractor for TieredKeyExtractor {
             .copied()
             .map_or(Tier::Anonymous, Tier::from);
 
-        // Use API key if present, otherwise IP-based identifier
-        let client_id = req
-            .headers()
-            .get("x-api-key")
-            .and_then(|h| h.to_str().ok())
-            .map(std::string::ToString::to_string)
+        // Extract ConnectInfo peer IP first; only trust rightmost X-Forwarded-For when behind
+        // a loopback/configured reverse proxy so rotating untrusted headers cannot bypass limits.
+        let peer_ip = req
+            .extensions()
+            .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
+            .map(|ci| ci.0.ip())
             .or_else(|| {
                 req.extensions()
                     .get::<std::net::SocketAddr>()
-                    .map(|a| a.ip().to_string())
-            })
-            .unwrap_or_else(|| "unknown".to_string());
+                    .map(std::net::SocketAddr::ip)
+            });
+
+        let behind_proxy = peer_ip.is_none_or(|ip| ip.is_loopback())
+            || std::env::var("TRUST_PROXY_HEADERS")
+                .is_ok_and(|v| v == "1" || v.eq_ignore_ascii_case("true"));
+
+        let client_id = if behind_proxy {
+            req.headers()
+                .get("x-forwarded-for")
+                .and_then(|h| h.to_str().ok())
+                .and_then(|s| {
+                    s.split(',')
+                        .rev()
+                        .map(str::trim)
+                        .find_map(|entry| entry.parse::<std::net::IpAddr>().ok())
+                        .map(|ip| ip.to_string())
+                })
+                .or_else(|| peer_ip.map(|ip| ip.to_string()))
+                .unwrap_or_else(|| "local-no-peer".to_string())
+        } else {
+            peer_ip
+                .map(|ip| ip.to_string())
+                .unwrap_or_else(|| "local-no-peer".to_string())
+        };
 
         Ok((client_id, tier))
     }
@@ -235,5 +257,25 @@ mod tests {
         req.extensions_mut().insert(UserRole::Internal);
         let key2 = extractor.extract(&req).unwrap();
         assert_eq!(key2.1, Tier::Internal);
+    }
+
+    #[test]
+    fn test_tiered_key_extractor_ignores_untrusted_api_key_and_leftmost_xff() {
+        let extractor = TieredKeyExtractor;
+        let req_a = Request::builder()
+            .header("x-api-key", "random-attacker-key-1")
+            .header("x-forwarded-for", "9.9.9.1, 198.51.100.12")
+            .body(())
+            .unwrap();
+        let req_b = Request::builder()
+            .header("x-api-key", "random-attacker-key-2")
+            .header("x-forwarded-for", "1.1.1.2, 198.51.100.12")
+            .body(())
+            .unwrap();
+
+        let key_a = extractor.extract(&req_a).unwrap();
+        let key_b = extractor.extract(&req_b).unwrap();
+        assert_eq!(key_a.0, "198.51.100.12");
+        assert_eq!(key_a, key_b);
     }
 }

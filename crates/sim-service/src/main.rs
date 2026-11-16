@@ -84,7 +84,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // CRITICAL FIX: Setup graceful shutdown with SIGTERM handling
     // Cloud Run sends SIGTERM before stopping the container (10 second grace period)
-    let server = axum::serve(listener, app);
+    let server = axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    );
 
     tokio::select! {
         result = server => {
