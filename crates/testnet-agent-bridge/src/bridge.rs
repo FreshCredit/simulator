@@ -142,6 +142,19 @@ mod tests {
         let signer = bridge.load_signer();
         assert!(signer.is_err());
     }
+
+    #[tokio::test]
+    async fn test_bridge_debug_redacts_seed_and_rejects_remote_ws() {
+        let bridge = AgentBridge::new(
+            "ws://testnet.example.com:9944".to_string(),
+            "//AliceSecretSeed".to_string(),
+        );
+        let dbg = format!("{bridge:?}");
+        assert!(!dbg.contains("AliceSecretSeed"));
+        assert!(dbg.contains("[REDACTED]"));
+        let err = bridge.get_client().await.unwrap_err();
+        assert!(err.contains("Refusing plaintext ws://"));
+    }
 }
 use std::sync::Arc;
 
@@ -161,7 +174,7 @@ use crate::types::{AnchorRequest, AnchorResponse, HealthStatus};
 // TAG: surface=blockchain owner=blockchain-team rule=BC-001
 pub mod freshcredit_runtime {}
 
-/// Bridge between simulation agents and the `FreshCredit` testnet
+/// Bridge between simulation agents and the `FreshCredit` testnet (`service_seed` redacted in `Debug`).
 ///
 /// Manages the connection to the Substrate-based testnet and provides
 /// methods for anchoring simulation data and querying blockchain state.
@@ -174,6 +187,15 @@ pub struct AgentBridge {
     pub(crate) metrics_collector: MetricsCollector,
 }
 
+impl std::fmt::Debug for AgentBridge {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AgentBridge")
+            .field("testnet_ws_url", &self.testnet_ws_url)
+            .field("service_seed", &"[REDACTED]")
+            .finish_non_exhaustive()
+    }
+}
+
 impl AgentBridge {
     pub fn new(testnet_ws_url: String, service_seed: String) -> Self {
         Self {
@@ -183,27 +205,64 @@ impl AgentBridge {
         }
     }
 
-    /// Get or create the subxt client
-    async fn get_client(&self) -> Result<Arc<OnlineClient<SubstrateConfig>>, String> {
-        // TAG: surface=blockchain owner=blockchain-team rule=BC-001
-        // Create new client (no caching for simplicity - subxt handles connection pooling)
-        info!("Creating subxt client for {}", self.testnet_ws_url);
+    fn is_loopback_ws(url: &str) -> bool {
+        let rest = url.strip_prefix("ws://").unwrap_or("");
+        let host_port = rest.split('/').next().unwrap_or("");
+        let host = if host_port.starts_with('[') {
+            host_port
+                .split(']')
+                .next()
+                .unwrap_or("")
+                .trim_start_matches('[')
+        } else {
+            host_port.split(':').next().unwrap_or("")
+        };
+        host.eq_ignore_ascii_case("localhost") || host == "127.0.0.1" || host == "::1"
+    }
 
-        let rpc_client = if self.testnet_ws_url.starts_with("wss://") {
+    /// Connect an underlying subxt `RpcClient`, enforcing `wss://` on non-loopback targets
+    /// unless `ALLOW_INSECURE_WS_RPC=1` is explicitly set.
+    async fn connect_rpc(&self) -> Result<RpcClient, String> {
+        if self.testnet_ws_url.starts_with("wss://") {
             RpcClient::from_url(&self.testnet_ws_url)
                 .await
-                .map_err(|e| format!("Failed to connect to secure RPC: {e}"))?
-        } else {
+                .map_err(|e| format!("Failed to connect to secure RPC: {e}"))
+        } else if self.testnet_ws_url.starts_with("ws://") {
+            let allow_insecure = std::env::var("ALLOW_INSECURE_WS_RPC")
+                .is_ok_and(|v| v == "1" || v.eq_ignore_ascii_case("true"));
+            if !Self::is_loopback_ws(&self.testnet_ws_url) && !allow_insecure {
+                return Err(
+                    "Refusing plaintext ws:// testnet RPC on non-loopback host; use wss:// or set ALLOW_INSECURE_WS_RPC=1".to_string()
+                );
+            }
             RpcClient::from_insecure_url(&self.testnet_ws_url)
                 .await
-                .map_err(|e| format!("Failed to connect to RPC: {e}"))?
-        };
+                .map_err(|e| format!("Failed to connect to RPC: {e}"))
+        } else {
+            Err(
+                "Invalid testnet WebSocket URL scheme (expected wss:// or loopback ws://)"
+                    .to_string(),
+            )
+        }
+    }
 
-        let client = OnlineClient::<SubstrateConfig>::from_rpc_client(rpc_client)
+    /// Get or create the subxt client and underlying `RpcClient` (reusable for header lookups)
+    async fn get_client_and_rpc(
+        &self,
+    ) -> Result<(Arc<OnlineClient<SubstrateConfig>>, RpcClient), String> {
+        // TAG: surface=blockchain owner=blockchain-team rule=BC-001
+        info!("Creating subxt client for {}", self.testnet_ws_url);
+        let rpc_client = self.connect_rpc().await?;
+        let client = OnlineClient::<SubstrateConfig>::from_rpc_client(rpc_client.clone())
             .await
             .map_err(|e| format!("Failed to create online client: {e}"))?;
+        Ok((Arc::new(client), rpc_client))
+    }
 
-        Ok(Arc::new(client))
+    /// Get or create the subxt client
+    async fn get_client(&self) -> Result<Arc<OnlineClient<SubstrateConfig>>, String> {
+        let (client, _) = self.get_client_and_rpc().await?;
+        Ok(client)
     }
 
     /// Load the service account signer
@@ -231,8 +290,8 @@ impl AgentBridge {
             _ => return Err("Hash must be 32 bytes hex".to_string()),
         };
 
-        // Get subxt client
-        let client = self.get_client().await?;
+        // Get subxt client and reusable RPC transport
+        let (client, rpc_client) = self.get_client_and_rpc().await?;
 
         // Load signer
         let signer = self.load_signer()?;
@@ -284,16 +343,7 @@ impl AgentBridge {
             .map_err(|e| format!("Transaction execution failed: {e}"))?;
 
         // TAG: surface=blockchain owner=blockchain-team rule=BC-001
-        // Query the finalized block header directly using the true block hash
-        let rpc_client = if self.testnet_ws_url.starts_with("wss://") {
-            RpcClient::from_url(&self.testnet_ws_url)
-                .await
-                .map_err(|e| format!("Failed to connect for block query: {e}"))?
-        } else {
-            RpcClient::from_insecure_url(&self.testnet_ws_url)
-                .await
-                .map_err(|e| format!("Failed to connect for block query: {e}"))?
-        };
+        // Query the finalized block header reusing the established RPC connection
         let rpc = LegacyRpcMethods::<subxt::config::RpcConfigFor<SubstrateConfig>>::new(rpc_client);
 
         let header = rpc
@@ -366,7 +416,7 @@ impl AgentBridge {
         let start = std::time::Instant::now();
 
         // Try to connect and get latest block via RPC
-        match RpcClient::from_insecure_url(&self.testnet_ws_url).await {
+        match self.connect_rpc().await {
             Ok(rpc_client) => {
                 let rpc = LegacyRpcMethods::<subxt::config::RpcConfigFor<SubstrateConfig>>::new(
                     rpc_client,
