@@ -35,7 +35,61 @@ use crate::agent::Agent;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use serde::{Deserialize, Serialize};
-use std::f32::consts::PI;
+use std::f64::consts::PI as PI_F64;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+static CLONE_NONCE: AtomicU64 = AtomicU64::new(1);
+
+fn erfc_f64(x: f64) -> f64 {
+    // Abramowitz & Stegun 7.1.26 rational approximation (max error < 1.5e-7)
+    let z = x.abs();
+    let t = 1.0 / (1.0 + 0.327_591_1 * z);
+    let poly = t
+        * (0.254_829_592
+            + t * (-0.284_496_736
+                + t * (1.421_413_741 + t * (-1.453_152_027 + t * 1.061_405_429))));
+    let r = poly * (-z * z).exp();
+    if x >= 0.0 {
+        r
+    } else {
+        2.0 - r
+    }
+}
+
+fn norm_cdf_f64(x: f64) -> f64 {
+    0.5 * erfc_f64(-x / std::f64::consts::SQRT_2)
+}
+
+/// Balle & Wang (2018) Analytic Gaussian Mechanism: solves
+/// `Phi(Delta/(2*sigma) - eps*sigma/Delta) - exp(eps)*Phi(-Delta/(2*sigma) - eps*sigma/Delta) <= delta`
+/// accurately for ALL `epsilon > 0` (unlike the classical `epsilon < 1` bound).
+fn analytic_gaussian_sigma(sensitivity: f64, epsilon: f64, delta: f64) -> f64 {
+    if sensitivity <= 0.0 {
+        return 0.0;
+    }
+    let delta_target = delta.clamp(1e-12, 0.49);
+    let b0 = norm_cdf_f64(0.0) - epsilon.exp() * norm_cdf_f64(0.0);
+    let _ = b0;
+    let phi_diff = |s: f64| -> f64 {
+        let a = sensitivity / (2.0 * s);
+        let b = (epsilon * s) / sensitivity;
+        norm_cdf_f64(a - b) - epsilon.exp() * norm_cdf_f64(-a - b)
+    };
+    let mut lo = 1e-6_f64;
+    let mut hi = (sensitivity * (2.0 * (1.25 / delta_target).ln()).sqrt() / epsilon).max(1.0);
+    while phi_diff(hi) > delta_target && hi < 1e12 {
+        hi *= 2.0;
+    }
+    for _ in 0..80 {
+        let mid = 0.5 * (lo + hi);
+        if phi_diff(mid) <= delta_target {
+            hi = mid;
+        } else {
+            lo = mid;
+        }
+    }
+    hi
+}
 
 /// Differential privacy system for population statistics
 // TAG: surface=simulation owner=platform-team rule=GENERAL-001
@@ -77,18 +131,23 @@ fn default_rng() -> StdRng {
 // TAG: surface=simulation owner=research-team rule=SIM-001
 impl Clone for DifferentialPrivacy {
     fn clone(&self) -> Self {
+        // Fork independent PRNG state via OS entropy + monotonic counter so cloned
+        // privacy trackers NEVER emit identical correlated noise streams.
+        let nonce = CLONE_NONCE.fetch_add(1, Ordering::Relaxed);
+        let rng = StdRng::from_rng(rand::rngs::OsRng).unwrap_or_else(|_| {
+            StdRng::seed_from_u64(
+                nonce
+                    .wrapping_mul(0x9E37_79B9_7F4A_7C15)
+                    .wrapping_add(u64::from(self.budget_consumed.to_bits())),
+            )
+        });
         Self {
             epsilon: self.epsilon,
             budget_consumed: self.budget_consumed,
             max_budget: self.max_budget,
             mechanism: self.mechanism,
             delta: self.delta,
-            // Create new RNG from a hash of current state for deterministic cloning
-            rng: StdRng::seed_from_u64(
-                (self.epsilon.to_bits() as u64)
-                    .wrapping_add(self.budget_consumed.to_bits() as u64)
-                    .wrapping_add(self.max_budget.to_bits() as u64),
-            ),
+            rng,
         }
     }
 }
@@ -273,16 +332,16 @@ impl DifferentialPrivacy {
     /// # Returns
     /// Value with Gaussian noise added
     pub fn add_gaussian_noise(&mut self, value: f32, sensitivity: f32) -> f32 {
-        let delta = self.delta.unwrap_or(1e-6).clamp(1e-12, 0.1);
-        let eps = self.epsilon.clamp(0.001, 1000.0);
+        let delta = f64::from(self.delta.unwrap_or(1e-6).clamp(1e-12, 0.1));
+        let eps = f64::from(self.epsilon.clamp(0.001, 1000.0));
         let sens = if sensitivity.is_finite() {
-            sensitivity.max(0.0)
+            f64::from(sensitivity.max(0.0))
         } else {
             0.0
         };
-        let sigma = sens * (2.0 * (1.25 / delta).ln()).sqrt() / eps;
-        let noise = self.sample_gaussian(0.0, sigma);
-        value + noise
+        let sigma = analytic_gaussian_sigma(sens, eps, delta);
+        let noise = self.sample_gaussian_f64(0.0, sigma);
+        (f64::from(value) + noise) as f32
     }
 
     // TAG: surface=simulation owner=research-team rule=SIM-001
@@ -458,11 +517,19 @@ impl DifferentialPrivacy {
     /// * `mu` - Location parameter (mean)
     /// * `b` - Scale parameter
     fn sample_laplace(&mut self, mu: f32, b: f32) -> f32 {
-        let u: f32 = self.rng.gen::<f32>() - 0.5;
+        // Sample in f64 to mitigate Mironov (2012) low-mantissa LSB precision leakage
+        let u: f64 = self.rng.gen::<f64>() - 0.5;
         let sign = if u < 0.0 { -1.0 } else { 1.0 };
-        let prob_term = (1.0 - 2.0 * u.abs()).max(f32::MIN_POSITIVE);
-        let noise = -b * sign * prob_term.ln();
-        mu + noise
+        let prob_term = (1.0 - 2.0 * u.abs()).max(f64::MIN_POSITIVE);
+        let noise = -f64::from(b) * sign * prob_term.ln();
+        (f64::from(mu) + noise) as f32
+    }
+
+    fn sample_gaussian_f64(&mut self, mu: f64, sigma: f64) -> f64 {
+        let u1: f64 = self.rng.gen_range(f64::MIN_POSITIVE..1.0);
+        let u2: f64 = self.rng.gen_range(0.0..2.0 * PI_F64);
+        let z: f64 = (-2.0 * u1.ln()).sqrt() * u2.cos();
+        mu + sigma * z
     }
 
     /// Sample from Gaussian distribution using Box-Muller transform
@@ -473,12 +540,9 @@ impl DifferentialPrivacy {
     /// # Errors
     ///
     /// Returns an error if the operation fails.
+    #[cfg(test)]
     fn sample_gaussian(&mut self, mu: f32, sigma: f32) -> f32 {
-        // Box-Muller transform with positive singularity prevention
-        let u1: f32 = self.rng.gen_range(f32::MIN_POSITIVE..1.0);
-        let u2: f32 = self.rng.gen_range(0.0..2.0 * PI);
-        let z: f32 = (-2.0 * u1.ln()).sqrt() * u2.cos();
-        mu + sigma * z
+        self.sample_gaussian_f64(f64::from(mu), f64::from(sigma)) as f32
     }
 
     // TAG: surface=simulation owner=research-team rule=SIM-001
@@ -1525,5 +1589,37 @@ mod tests {
             samples1, samples2,
             "Samples with different seeds should differ"
         );
+    }
+
+    #[test]
+    fn test_clone_diverges_prng_stream_no_noise_cancellation() {
+        let dp_orig = DifferentialPrivacy::with_seed(1.0, 42);
+        let mut clone_a = dp_orig.clone();
+        let mut clone_b = dp_orig.clone();
+        let seq_a: Vec<f32> = (0..16)
+            .map(|_| clone_a.add_laplace_noise(10.0, 1.0))
+            .collect();
+        let seq_b: Vec<f32> = (0..16)
+            .map(|_| clone_b.add_laplace_noise(10.0, 1.0))
+            .collect();
+        assert_ne!(
+            seq_a, seq_b,
+            "Cloned DP trackers must never emit identical noise"
+        );
+    }
+
+    #[test]
+    fn test_analytic_gaussian_calibrated_at_high_epsilon() {
+        let sigma_eps10 = analytic_gaussian_sigma(1.0, 10.0, 1e-6);
+        let classic_invalid = (2.0 * (1.25 / 1e-6_f64).ln()).sqrt() / 10.0;
+        assert!(
+            sigma_eps10 > classic_invalid,
+            "Analytic Gaussian sigma ({sigma_eps10}) must exceed invalid low-eps approximation ({classic_invalid}) at eps=10"
+        );
+        // Verify exact Balle-Wang inequality holds at calibrated sigma
+        let a = 1.0 / (2.0 * sigma_eps10);
+        let b = 10.0 * sigma_eps10;
+        let actual_delta = norm_cdf_f64(a - b) - 10.0_f64.exp() * norm_cdf_f64(-a - b);
+        assert!(actual_delta <= 1e-6 + 1e-9, "actual_delta={actual_delta}");
     }
 }

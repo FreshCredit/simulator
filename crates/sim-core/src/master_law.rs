@@ -128,6 +128,34 @@ impl MasterLawConfig {
         self.step(current_s, eps)
     }
 
+    /// Exact fixed-point integer Master Stability Law step (`FIXED_SCALE = 10^9`, `div_euclid`),
+    /// matching `fresh-protocol-spec::MasterLawParams::step_fixed_i64`, `uniffi_bridge`, and `ZK-STP v8` bit-for-bit.
+    #[must_use]
+    #[allow(clippy::cast_possible_truncation)]
+    pub fn step_fixed_i64(
+        &self,
+        current_s_fixed: i64,
+        v_fixed: i64,
+        e_fixed: i64,
+        r_fixed: i64,
+    ) -> i64 {
+        const FIXED_SCALE: i128 = 1_000_000_000;
+        let lp = (self.lambda_plus * (FIXED_SCALE as f64)).round() as i128;
+        let ln = (self.lambda_minus * (FIXED_SCALE as f64)).round() as i128;
+        let delta = (self.leak_delta * (FIXED_SCALE as f64)).round() as i128;
+        let s_base = (self.s_base * (FIXED_SCALE as f64)).round() as i128;
+        let s = i128::from(current_s_fixed);
+        let v = i128::from(v_fixed);
+        let e = i128::from(e_fixed);
+        let r = i128::from(r_fixed);
+        let eps = v - e;
+        let (eps_p, eps_n) = if eps >= 0 { (eps, 0) } else { (0, -eps) };
+        let q_d = ((lp * eps_p - ln * eps_n) * r).div_euclid(FIXED_SCALE * FIXED_SCALE);
+        let q_l = (delta * (s - s_base)).div_euclid(FIXED_SCALE);
+        let clamped = (s + q_d - q_l).clamp(0, FIXED_SCALE);
+        i64::try_from(clamped).unwrap_or(0)
+    }
+
     /// Z3-verified (v4.5) asymmetric shifted BIBO invariant interval under unit mismatch |ε̃| ≤ 1:
     /// `[S_base - λ⁻/δ_S, S_base + λ⁺/δ_S]` when `δ_S > 0`. Returns `None` in the leak-free (`δ_S = 0`) limit.
     #[must_use]
@@ -338,5 +366,25 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn test_step_fixed_i64_golden_parity() {
+        let cfg = MasterLawConfig {
+            preset: MasterLawPreset::ProtocolAsymmetric,
+            lambda_plus: 0.228,
+            lambda_minus: 0.912,
+            recognition_gate: 1.0,
+            leak_delta: 0.010,
+            s_base: 0.500,
+            scale_s_d: 1.0,
+            corrective_bandwidth_mu: 1.0,
+        };
+        let s1 = cfg.step_fixed_i64(500_000_000, 850_000_000, 500_000_000, 1_000_000_000);
+        assert_eq!(s1, 579_800_000);
+        let s2 = cfg.step_fixed_i64(s1, 100_000_000, 750_000_000, 1_000_000_000);
+        assert_eq!(s2, 0);
+        let s3 = cfg.step_fixed_i64(430_802_000, 500_000_000, 500_000_000, 1_000_000_000);
+        assert_eq!(s3, 431_493_980);
     }
 }

@@ -152,14 +152,58 @@ pub fn create_router(artifacts_dir: PathBuf) -> Router {
 }
 
 // TAG: surface=simulation owner=research-team rule=SIM-001
-/// Create the main router with custom executor config
-/// # Panics
-///
-/// Panics if preconditions are not met.
+/// Constant-time API key authentication guard for `/api/*` and WS routes when `SIM_SERVICE_API_KEY` is configured.
+async fn sim_service_auth_middleware(
+    axum::extract::State(expected_key): axum::extract::State<Option<String>>,
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> Result<axum::response::Response, axum::http::StatusCode> {
+    if let Some(ref expected) = expected_key {
+        if !expected.is_empty() {
+            use sha2::{Digest, Sha256};
+            let provided = req
+                .headers()
+                .get("x-api-key")
+                .and_then(|v| v.to_str().ok())
+                .or_else(|| {
+                    req.headers()
+                        .get(axum::http::header::AUTHORIZATION)
+                        .and_then(|v| v.to_str().ok())
+                        .and_then(|s| s.strip_prefix("Bearer "))
+                })
+                .unwrap_or("");
+            let a: [u8; 32] = Sha256::digest(provided.as_bytes()).into();
+            let b: [u8; 32] = Sha256::digest(expected.as_bytes()).into();
+            let diff = a
+                .iter()
+                .zip(b.iter())
+                .fold(0u8, |acc, (x, y)| acc | (x ^ y));
+            if diff != 0 {
+                return Err(axum::http::StatusCode::UNAUTHORIZED);
+            }
+        }
+    }
+    Ok(next.run(req).await)
+}
+
+/// Builds the main router (reading optional `SIM_SERVICE_API_KEY` from env).
 #[allow(clippy::needless_pass_by_value)] // public entry point; ownership kept for API stability
 pub fn create_router_with_config(
     artifacts_dir: PathBuf,
     executor_config: ExecutorConfig,
+) -> Router {
+    let api_key = std::env::var("SIM_SERVICE_API_KEY")
+        .ok()
+        .filter(|v| !v.is_empty());
+    create_router_with_config_and_key(artifacts_dir, executor_config, api_key)
+}
+
+/// Builds the main router with an explicit optional `SIM_SERVICE_API_KEY`.
+#[allow(clippy::needless_pass_by_value)]
+pub fn create_router_with_config_and_key(
+    artifacts_dir: PathBuf,
+    executor_config: ExecutorConfig,
+    api_key: Option<String>,
 ) -> Router {
     let cors = build_cors_layer();
 
@@ -214,10 +258,14 @@ pub fn create_router_with_config(
     let ws_routes = build_ws_routes();
 
     // TAG: surface=simulation owner=research-team rule=SIM-001
-    // Combine all routes
-    Router::new()
-        .route("/health", get(health))
-        .route("/docas/viz", get(crate::api::docas::docas_visualizer))
+    // Protect /api/* and WS routes with optional SIM_SERVICE_API_KEY; keep /health & /docas/viz open
+    if api_key.as_ref().is_none_or(String::is_empty) {
+        tracing::warn!(
+            "[Router] SIM_SERVICE_API_KEY unset — /api/* endpoints are running in open local mode"
+        );
+    }
+
+    let protected_api = Router::new()
         .nest("/api", live_routes)
         .nest("/api", artifact_routes)
         .nest("/api", job_routes)
@@ -248,6 +296,16 @@ pub fn create_router_with_config(
         .nest("/api", research_routes)
         .nest("/api", docas_routes)
         .merge(ws_routes)
+        .layer(axum::middleware::from_fn_with_state(
+            api_key,
+            sim_service_auth_middleware,
+        ));
+
+    // Combine all routes
+    Router::new()
+        .route("/health", get(health))
+        .route("/docas/viz", get(crate::api::docas::docas_visualizer))
+        .merge(protected_api)
         .layer(cors)
 }
 
@@ -296,6 +354,7 @@ fn build_cors_layer() -> CorsLayer {
             axum::http::header::CONTENT_TYPE,
             axum::http::header::ACCEPT,
             axum::http::header::ORIGIN,
+            axum::http::HeaderName::from_static("x-api-key"),
         ])
 }
 
@@ -918,5 +977,54 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_sim_service_api_key_middleware_blocks_unauth_and_allows_valid_key() {
+        let dir = tempdir().unwrap();
+        let app = create_router_with_config_and_key(
+            dir.path().to_path_buf(),
+            ExecutorConfig {
+                sim_runner_path: PathBuf::from("sim-runner"),
+                artifacts_dir: dir.path().to_path_buf(),
+            },
+            Some("test-sim-secret-123".to_string()),
+        );
+
+        let health_resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(health_resp.status(), StatusCode::OK);
+
+        let unauth_resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/presets")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(unauth_resp.status(), StatusCode::UNAUTHORIZED);
+
+        let auth_resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/presets")
+                    .header("x-api-key", "test-sim-secret-123")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(auth_resp.status(), StatusCode::OK);
     }
 }

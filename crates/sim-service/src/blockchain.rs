@@ -15,6 +15,8 @@ use tracing::{debug, info};
 pub struct BlockchainConfig {
     /// URL of the agent-bridge service
     pub bridge_url: String,
+    /// Optional API key sent via `x-api-key` to hardened `testnet-agent-bridge`
+    pub bridge_api_key: Option<String>,
     /// Enable/disable anchoring
     pub enabled: bool,
 }
@@ -24,6 +26,9 @@ impl Default for BlockchainConfig {
         Self {
             bridge_url: std::env::var("AGENT_BRIDGE_URL")
                 .unwrap_or_else(|_| "http://localhost:8080".to_string()),
+            bridge_api_key: std::env::var("BRIDGE_API_KEY")
+                .ok()
+                .filter(|s| !s.is_empty()),
             enabled: true,
         }
     }
@@ -36,6 +41,9 @@ impl BlockchainConfig {
     pub fn from_env() -> Self {
         let bridge_url = std::env::var("AGENT_BRIDGE_URL")
             .unwrap_or_else(|_| "http://localhost:8080".to_string());
+        let bridge_api_key = std::env::var("BRIDGE_API_KEY")
+            .ok()
+            .filter(|s| !s.is_empty());
 
         let enabled = std::env::var("BLOCKCHAIN_ANCHORING_ENABLED")
             .map(|v| v.parse().unwrap_or(true))
@@ -43,6 +51,7 @@ impl BlockchainConfig {
 
         Self {
             bridge_url,
+            bridge_api_key,
             enabled,
         }
     }
@@ -196,12 +205,16 @@ impl BlockchainAnchor {
 
         debug!("Anchoring simulation {} to blockchain", run_id);
 
-        let response = self
+        let mut req = self
             .http_client
             .post(format!("{}/anchor", self.config.bridge_url))
-            .json(&request)
-            .send()
-            .await?;
+            .json(&request);
+        if let Some(ref key) = self.config.bridge_api_key {
+            if !key.is_empty() {
+                req = req.header("x-api-key", key);
+            }
+        }
+        let response = req.send().await?;
 
         if !response.status().is_success() {
             let error_text = crate::http_client::read_bounded_text(
@@ -364,6 +377,7 @@ mod tests {
     fn test_config() -> BlockchainConfig {
         BlockchainConfig {
             bridge_url: "http://localhost:8082".to_string(),
+            bridge_api_key: None,
             enabled: true,
         }
     }
