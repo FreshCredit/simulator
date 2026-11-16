@@ -393,7 +393,8 @@ impl StabilityAnalyzer {
     }
 
     // TAG: surface=simulation owner=research-team rule=SIM-001
-    /// Compare two result sets for equivalence (symmetric relative difference)
+    /// Compare two result sets for statistical equivalence using Schuirmann's (1987)
+    /// Two One-Sided Welch t-Tests (TOST, alpha=0.05 -> 90% Welch-Satterthwaite CI inside [-delta, +delta]).
     #[must_use]
     pub fn compare_for_equivalence(
         &self,
@@ -421,21 +422,65 @@ impl StabilityAnalyzer {
             .filter(|v| v.is_finite())
             .collect();
 
-        if values_a.is_empty() || values_b.is_empty() {
+        if values_a.len() < 2 || values_b.len() < 2 {
             return false;
         }
 
-        let mean_a = values_a.iter().sum::<f64>() / values_a.len() as f64;
-        let mean_b = values_b.iter().sum::<f64>() / values_b.len() as f64;
+        let n_a = values_a.len() as f64;
+        let n_b = values_b.len() as f64;
+        let mean_a = values_a.iter().sum::<f64>() / n_a;
+        let mean_b = values_b.iter().sum::<f64>() / n_b;
 
-        let scale = mean_a.abs().max(mean_b.abs());
-        let relative_diff = if scale < 1e-12 {
-            (mean_a - mean_b).abs()
+        let var_a = values_a.iter().map(|&v| (v - mean_a).powi(2)).sum::<f64>() / (n_a - 1.0);
+        let var_b = values_b.iter().map(|&v| (v - mean_b).powi(2)).sum::<f64>() / (n_b - 1.0);
+
+        let scale = mean_a.abs().max(mean_b.abs()).max(1e-12);
+        let delta_abs = eff_threshold * scale;
+        let diff = (mean_a - mean_b).abs();
+
+        let se_sq = (var_a / n_a) + (var_b / n_b);
+        if se_sq <= 1e-18 {
+            return diff < delta_abs;
+        }
+
+        let se = se_sq.sqrt();
+        // Welch-Satterthwaite effective degrees of freedom
+        let t1 = var_a / n_a;
+        let t2 = var_b / n_b;
+        let df_den = (t1 * t1) / (n_a - 1.0) + (t2 * t2) / (n_b - 1.0);
+        let df = if df_den > 1e-18 {
+            (se_sq * se_sq) / df_den
         } else {
-            (mean_a - mean_b).abs() / scale
+            n_a + n_b - 2.0
         };
 
-        relative_diff < eff_threshold
+        // Two-sided 90% Student-t critical value (alpha = 0.05 per one-sided TOST bound)
+        let t_crit_90 = Self::student_t_90_crit(df);
+        (diff + t_crit_90 * se) < delta_abs
+    }
+
+    fn student_t_90_crit(df: f64) -> f64 {
+        let nu = df.max(1.0);
+        let d_int = nu.round() as usize;
+        if (nu - d_int as f64).abs() < 0.25 && d_int <= 10 {
+            match d_int {
+                1 => 6.313_751_514_800_932,
+                2 => 2.919_985_580_355_516,
+                3 => 2.353_363_434_801_826_4,
+                4 => 2.131_846_781_336_29,
+                5 => 2.015_048_372_669_157,
+                6 => 1.943_180_280_392_781_6,
+                7 => 1.894_578_605_061_305,
+                8 => 1.859_548_037_522_842_1,
+                9 => 1.833_112_932_653_633_5,
+                _ => 1.812_461_122_810_733_5,
+            }
+        } else {
+            let z = 1.644_853_626_951_472_2_f64;
+            let z3 = z.powi(3);
+            let z5 = z.powi(5);
+            z + (z3 + z) / (4.0 * nu) + (5.0 * z5 + 16.0 * z3 + 3.0 * z) / (96.0 * nu * nu)
+        }
     }
 }
 
@@ -492,6 +537,56 @@ mod tests {
         let is_equivalent_rev =
             analyzer.compare_for_equivalence(&results_b, &results_a, "fitness", 0.05);
         assert_eq!(is_equivalent, is_equivalent_rev);
+
+        // Noisy small-sample N=2 series with close means must FAIL Welch TOST equivalence
+        let mut m1 = HashMap::new();
+        m1.insert("fitness".to_string(), 0.0);
+        let mut m2 = HashMap::new();
+        m2.insert("fitness".to_string(), 20.0);
+        let noisy_a = vec![
+            ReplicationResult {
+                index: 0,
+                seed: 1,
+                metrics: m1,
+                execution_time_secs: 1.0,
+                success: true,
+                error: None,
+            },
+            ReplicationResult {
+                index: 1,
+                seed: 2,
+                metrics: m2,
+                execution_time_secs: 1.0,
+                success: true,
+                error: None,
+            },
+        ];
+        let mut m3 = HashMap::new();
+        m3.insert("fitness".to_string(), 0.1);
+        let mut m4 = HashMap::new();
+        m4.insert("fitness".to_string(), 20.1);
+        let noisy_b = vec![
+            ReplicationResult {
+                index: 0,
+                seed: 3,
+                metrics: m3,
+                execution_time_secs: 1.0,
+                success: true,
+                error: None,
+            },
+            ReplicationResult {
+                index: 1,
+                seed: 4,
+                metrics: m4,
+                execution_time_secs: 1.0,
+                success: true,
+                error: None,
+            },
+        ];
+        assert!(
+            !analyzer.compare_for_equivalence(&noisy_a, &noisy_b, "fitness", 0.05),
+            "High-variance N=2 series must NOT pass Welch TOST equivalence"
+        );
     }
 
     #[test]

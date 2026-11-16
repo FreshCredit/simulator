@@ -18,33 +18,40 @@ use crate::validation::reproducibility::{
 pub async fn check_reproducibility(
     Json(request): Json<ReproducibilityCheckRequest>,
 ) -> Result<Json<ReproducibilityResult>, StatusCode> {
-    // For demo, generate synthetic replication results
-    let mut replications = Vec::new();
-
-    for i in 0..request.config.n_replications {
-        let seed = request.config.base_seed.wrapping_add(i as u64);
-
-        // Synthetic results with some noise
-        let noise: f64 = (i as f64 - request.config.n_replications as f64 / 2.0) * 0.02;
-        let mut metrics = HashMap::new();
-        metrics.insert("fitness".to_string(), 0.85 + noise);
-        metrics.insert("convergence_time".to_string(), 100.0 + noise * 100.0);
-        metrics.insert("diversity".to_string(), 0.45 + noise * 0.5);
-
-        replications.push(ReplicationResult {
-            index: i,
-            seed,
-            metrics,
-            execution_time_secs: 1.0,
-            success: true,
-            error: None,
-        });
+    if request.config.n_replications == 0 {
+        return Err(StatusCode::BAD_REQUEST);
     }
+    if request.config.n_replications > 5_000 {
+        return Err(StatusCode::PAYLOAD_TOO_LARGE);
+    }
+    tokio::task::spawn_blocking(move || {
+        let mut replications = Vec::with_capacity(request.config.n_replications);
 
-    let analyzer = StabilityAnalyzer::new(request.config);
-    let result = analyzer.analyze(&replications);
+        for i in 0..request.config.n_replications {
+            let seed = request.config.base_seed.wrapping_add(i as u64);
 
-    Ok(Json(result))
+            // Synthetic results with some noise
+            let noise: f64 = (i as f64 - request.config.n_replications as f64 / 2.0) * 0.02;
+            let mut metrics = HashMap::new();
+            metrics.insert("fitness".to_string(), 0.85 + noise);
+            metrics.insert("convergence_time".to_string(), 100.0 + noise * 100.0);
+            metrics.insert("diversity".to_string(), 0.45 + noise * 0.5);
+
+            replications.push(ReplicationResult {
+                index: i,
+                seed,
+                metrics,
+                execution_time_secs: 1.0,
+                success: true,
+                error: None,
+            });
+        }
+
+        let analyzer = StabilityAnalyzer::new(request.config);
+        Json(analyzer.analyze(&replications))
+    })
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
 // TAG: surface=simulation owner=research-team rule=SIM-001
@@ -55,50 +62,55 @@ pub async fn check_reproducibility(
 pub async fn analyze_seed_sensitivity(
     Json(request): Json<SeedSensitivityRequest>,
 ) -> Result<Json<SeedSensitivityResult>, StatusCode> {
-    let config = ReproducibilityConfig::default();
-    let _analyzer = StabilityAnalyzer::new(config);
-
-    // Generate synthetic base and perturbed results
-    let base_result = {
-        let mut m = HashMap::new();
-        m.insert("metric1".to_string(), 100.0);
-        m.insert("metric2".to_string(), 50.0);
-        m
-    };
-
-    let mut perturbed_results = Vec::new();
-    for i in 0..request.n_seeds {
-        let seed = request.base_seed.wrapping_add(i as u64);
-        let noise = ((seed as f64) % 10.0) / 100.0; // Small noise based on seed
-
-        let mut m = HashMap::new();
-        m.insert("metric1".to_string(), 100.0 + noise);
-        m.insert("metric2".to_string(), 50.0 + noise * 0.5);
-        perturbed_results.push(m);
+    if request.n_seeds > 5_000 {
+        return Err(StatusCode::PAYLOAD_TOO_LARGE);
     }
+    tokio::task::spawn_blocking(move || {
+        let config = ReproducibilityConfig::default();
+        let _analyzer = StabilityAnalyzer::new(config);
 
-    // Calculate max deviation
-    let mut max_deviation = HashMap::new();
-    for (metric, &base_value) in &base_result {
-        let deviations: Vec<f64> = perturbed_results
-            .iter()
-            .filter_map(|r| r.get(metric))
-            .map(|&v| ((v - base_value) / base_value).abs())
-            .collect();
+        let base_result = {
+            let mut m = HashMap::new();
+            m.insert("metric1".to_string(), 100.0);
+            m.insert("metric2".to_string(), 50.0);
+            m
+        };
 
-        // TAG: surface=simulation owner=research-team rule=SIM-001
-        let max_dev = deviations.iter().copied().fold(0.0, f64::max);
-        max_deviation.insert(metric.clone(), max_dev);
-    }
+        let mut perturbed_results = Vec::with_capacity(request.n_seeds);
+        for i in 0..request.n_seeds {
+            let seed = request.base_seed.wrapping_add(i as u64);
+            let noise = ((seed as f64) % 10.0) / 100.0;
 
-    let is_robust = request.n_seeds > 0 && max_deviation.values().all(|&dev| dev < 0.10);
+            let mut m = HashMap::new();
+            m.insert("metric1".to_string(), 100.0 + noise);
+            m.insert("metric2".to_string(), 50.0 + noise * 0.5);
+            perturbed_results.push(m);
+        }
 
-    Ok(Json(SeedSensitivityResult {
-        base_result,
-        perturbed_results,
-        max_deviation,
-        is_robust,
-    }))
+        let mut max_deviation = HashMap::new();
+        for (metric, &base_value) in &base_result {
+            let deviations: Vec<f64> = perturbed_results
+                .iter()
+                .filter_map(|r| r.get(metric))
+                .map(|&v| ((v - base_value) / base_value).abs())
+                .collect();
+
+            let max_dev = deviations.iter().copied().fold(0.0, f64::max);
+            max_deviation.insert(metric.clone(), max_dev);
+        }
+
+        let is_robust =
+            !perturbed_results.is_empty() && max_deviation.values().all(|&dev| dev < 0.10);
+
+        Json(SeedSensitivityResult {
+            base_result,
+            perturbed_results,
+            max_deviation,
+            is_robust,
+        })
+    })
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
 // TAG: surface=simulation owner=research-team rule=SIM-001

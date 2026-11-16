@@ -60,12 +60,19 @@ fn create_model(output_name: String) -> impl Fn(&HashMap<String, f64>) -> HashMa
 pub async fn run_local_analysis(
     Json(request): Json<LocalAnalysisRequest>,
 ) -> Result<Json<SensitivityResult>, StatusCode> {
-    let analyzer = LocalSensitivityAnalyzer::new(request.config);
-    let model = create_model(request.output.clone());
-
-    let result = analyzer.analyze(&request.parameters, &[request.output], model);
-
-    Ok(Json(result))
+    if request.parameters.is_empty() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    if request.parameters.len() > 32 {
+        return Err(StatusCode::PAYLOAD_TOO_LARGE);
+    }
+    tokio::task::spawn_blocking(move || {
+        let analyzer = LocalSensitivityAnalyzer::new(request.config);
+        let model = create_model(request.output.clone());
+        Json(analyzer.analyze(&request.parameters, &[request.output], model))
+    })
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
 // TAG: surface=simulation owner=research-team rule=SIM-001
@@ -76,12 +83,19 @@ pub async fn run_local_analysis(
 pub async fn run_morris_analysis(
     Json(request): Json<MorrisAnalysisRequest>,
 ) -> Result<Json<SensitivityResult>, StatusCode> {
-    let analyzer = MorrisAnalyzer::new(request.config);
-    let model = create_model(request.output.clone());
-
-    let result = analyzer.analyze(&request.parameters, &[request.output], model, request.seed);
-
-    Ok(Json(result))
+    if request.parameters.is_empty() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    if request.parameters.len() > 32 || request.config.num_trajectories > 1_000 {
+        return Err(StatusCode::PAYLOAD_TOO_LARGE);
+    }
+    tokio::task::spawn_blocking(move || {
+        let analyzer = MorrisAnalyzer::new(request.config);
+        let model = create_model(request.output.clone());
+        Json(analyzer.analyze(&request.parameters, &[request.output], model, request.seed))
+    })
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
 /// Run Sobol variance-based analysis
@@ -91,12 +105,22 @@ pub async fn run_morris_analysis(
 pub async fn run_sobol_analysis(
     Json(request): Json<SobolAnalysisRequest>,
 ) -> Result<Json<SensitivityResult>, StatusCode> {
-    let analyzer = SobolAnalyzer::new(request.config);
-    let model = create_model(request.output.clone());
-
-    let result = analyzer.analyze(&request.parameters, &[request.output], model, request.seed);
-
-    Ok(Json(result))
+    if request.parameters.is_empty() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    if request.parameters.len() > 32
+        || request.config.n > 4_096
+        || request.config.num_bootstrap > 1_000
+    {
+        return Err(StatusCode::PAYLOAD_TOO_LARGE);
+    }
+    tokio::task::spawn_blocking(move || {
+        let analyzer = SobolAnalyzer::new(request.config);
+        let model = create_model(request.output.clone());
+        Json(analyzer.analyze(&request.parameters, &[request.output], model, request.seed))
+    })
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
 // TAG: surface=simulation owner=research-team rule=SIM-001
@@ -232,77 +256,88 @@ pub async fn get_parameter_templates() -> Result<Json<ParameterTemplatesResponse
 pub async fn compare_methods(
     Json(request): Json<MethodComparisonRequest>,
 ) -> Result<Json<MethodComparisonResponse>, StatusCode> {
-    let mut results = HashMap::new();
-    let output = request.output.clone();
-
-    for method in &request.methods {
-        let result = match method.as_str() {
-            "local" => {
-                let analyzer = LocalSensitivityAnalyzer::default();
-                let model = create_model(output.clone());
-                analyzer.analyze(&request.parameters, std::slice::from_ref(&output), model)
-            }
-            "morris" => {
-                let analyzer = MorrisAnalyzer::default();
-                let model = create_model(output.clone());
-                analyzer.analyze(
-                    &request.parameters,
-                    std::slice::from_ref(&output),
-                    model,
-                    Some(42),
-                )
-            }
-            // TAG: surface=simulation owner=platform-team rule=GENERAL-001
-            "sobol" => {
-                let config = SobolConfig {
-                    n: 512,
-                    calc_second_order: false,
-                    num_bootstrap: 0,
-                };
-                let analyzer = SobolAnalyzer::new(config);
-                let model = create_model(output.clone());
-                analyzer.analyze(
-                    &request.parameters,
-                    std::slice::from_ref(&output),
-                    model,
-                    Some(42),
-                )
-            }
-            "tornado" => {
-                let tornado = TornadoDiagram::new();
-                let model = create_model(output.clone());
-                let data =
-                    tornado.generate(&request.parameters, std::slice::from_ref(&output), model);
-                tornado.to_sensitivity_result(data, 0.0, request.parameters.len() * 2)
-            }
-            _ => continue,
-        };
-
-        results.insert(method.clone(), result);
+    if request.parameters.is_empty() || request.methods.is_empty() {
+        return Err(StatusCode::BAD_REQUEST);
     }
+    if request.parameters.len() > 32 || request.methods.len() > 8 {
+        return Err(StatusCode::PAYLOAD_TOO_LARGE);
+    }
+    tokio::task::spawn_blocking(move || {
+        let mut results = HashMap::new();
+        let output = request.output.clone();
 
-    // TAG: surface=simulation owner=research-team rule=SIM-001
-    // Compare rankings with deterministic method ordering
-    let mut agreement = HashMap::new();
-    let mut method_names: Vec<_> = results.keys().cloned().collect();
-    method_names.sort();
+        for method in &request.methods {
+            let result = match method.as_str() {
+                "local" => {
+                    let analyzer = LocalSensitivityAnalyzer::default();
+                    let model = create_model(output.clone());
+                    analyzer.analyze(&request.parameters, std::slice::from_ref(&output), model)
+                }
+                "morris" => {
+                    let analyzer = MorrisAnalyzer::default();
+                    let model = create_model(output.clone());
+                    analyzer.analyze(
+                        &request.parameters,
+                        std::slice::from_ref(&output),
+                        model,
+                        Some(42),
+                    )
+                }
+                // TAG: surface=simulation owner=platform-team rule=GENERAL-001
+                "sobol" => {
+                    let config = SobolConfig {
+                        n: 512,
+                        calc_second_order: false,
+                        num_bootstrap: 0,
+                    };
+                    let analyzer = SobolAnalyzer::new(config);
+                    let model = create_model(output.clone());
+                    analyzer.analyze(
+                        &request.parameters,
+                        std::slice::from_ref(&output),
+                        model,
+                        Some(42),
+                    )
+                }
+                "tornado" => {
+                    let tornado = TornadoDiagram::new();
+                    let model = create_model(output.clone());
+                    let data =
+                        tornado.generate(&request.parameters, std::slice::from_ref(&output), model);
+                    tornado.to_sensitivity_result(data, 0.0, request.parameters.len() * 2)
+                }
+                _ => continue,
+            };
 
-    for i in 0..method_names.len() {
-        for j in (i + 1)..method_names.len() {
-            let m1 = &method_names[i];
-            let m2 = &method_names[j];
+            results.insert(method.clone(), result);
+        }
 
-            if let (Some(r1), Some(r2)) = (results.get(m1), results.get(m2)) {
-                let kendall_tau = compute_kendall_tau(&r1.parameter_ranking, &r2.parameter_ranking);
-                agreement.insert(format!("{m1}_vs_{m2}"), kendall_tau);
+        // TAG: surface=simulation owner=research-team rule=SIM-001
+        // Compare rankings with deterministic method ordering
+        let mut agreement = HashMap::new();
+        let mut method_names: Vec<_> = results.keys().cloned().collect();
+        method_names.sort();
+
+        for i in 0..method_names.len() {
+            for j in (i + 1)..method_names.len() {
+                let m1 = &method_names[i];
+                let m2 = &method_names[j];
+
+                if let (Some(r1), Some(r2)) = (results.get(m1), results.get(m2)) {
+                    let kendall_tau =
+                        compute_kendall_tau(&r1.parameter_ranking, &r2.parameter_ranking);
+                    agreement.insert(format!("{m1}_vs_{m2}"), kendall_tau);
+                }
             }
         }
-    }
 
-    Ok(Json(MethodComparisonResponse {
-        results,
-        ranking_agreement: agreement,
-    }))
+        Json(MethodComparisonResponse {
+            results,
+            ranking_agreement: agreement,
+        })
+    })
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
 /// Compute Kendall's tau rank correlation with exact tie handling
