@@ -245,17 +245,19 @@ pub fn test_granger_causality(
     if n != y.len() || n <= 2 * max_lag + 2 || max_lag == 0 {
         return None;
     }
-    if x.iter().any(|v| !v.is_finite()) || y.iter().any(|v| !v.is_finite()) {
+
+    // Check for constant series (zero variance) across finite observations
+    let finite_x: Vec<f64> = x.iter().copied().filter(|v| v.is_finite()).collect();
+    let finite_y: Vec<f64> = y.iter().copied().filter(|v| v.is_finite()).collect();
+    if finite_x.len() <= 2 * max_lag + 2 || finite_y.len() <= 2 * max_lag + 2 {
         return None;
     }
-
-    // Check for constant series (zero variance)
-    let (min_x, max_x) = x
+    let (min_x, max_x) = finite_x
         .iter()
         .fold((f64::INFINITY, f64::NEG_INFINITY), |(mn, mx), &v| {
             (mn.min(v), mx.max(v))
         });
-    let (min_y, max_y) = y
+    let (min_y, max_y) = finite_y
         .iter()
         .fold((f64::INFINITY, f64::NEG_INFINITY), |(mn, mx), &v| {
             (mn.min(v), mx.max(v))
@@ -276,28 +278,35 @@ pub fn test_granger_causality(
         });
     }
 
-    let t_eff = n - max_lag;
     let mut best_p = 1;
     let mut best_bic = f64::INFINITY;
     let mut best_fit_r = None;
     let mut best_fit_u = None;
+    let mut best_t_eff = 0usize;
 
     for p in 1..=max_lag {
-        let mut y_dep = Vec::with_capacity(t_eff);
-        let mut x_restr = Vec::with_capacity(t_eff);
-        let mut x_unrestr = Vec::with_capacity(t_eff);
+        let mut y_dep = Vec::new();
+        let mut x_restr = Vec::new();
+        let mut x_unrestr = Vec::new();
 
         for t in max_lag..n {
+            if !y[t].is_finite() {
+                continue;
+            }
+            let lags_finite = (1..=p).all(|lag| y[t - lag].is_finite() && x[t - lag].is_finite());
+            if !lags_finite {
+                continue;
+            }
             y_dep.push(y[t]);
 
-            let mut row_r = Vec::with_capacity(p + 1);
+            let mut row_r = Vec::new();
             row_r.push(1.0); // constant
             for lag in 1..=p {
                 row_r.push(y[t - lag]);
             }
             x_restr.push(row_r);
 
-            let mut row_u = Vec::with_capacity(2 * p + 1);
+            let mut row_u = Vec::new();
             row_u.push(1.0); // constant
             for lag in 1..=p {
                 row_u.push(y[t - lag]);
@@ -308,6 +317,10 @@ pub fn test_granger_causality(
             x_unrestr.push(row_u);
         }
 
+        let t_eff = y_dep.len();
+        if t_eff <= 2 * p + 2 {
+            continue;
+        }
         let Some(fit_r) = fit_ols(&y_dep, &x_restr) else {
             continue;
         };
@@ -323,6 +336,7 @@ pub fn test_granger_causality(
         if bic < best_bic {
             best_bic = bic;
             best_p = p;
+            best_t_eff = t_eff;
             best_fit_r = Some(fit_r);
             best_fit_u = Some(fit_u);
         }
@@ -333,7 +347,7 @@ pub fn test_granger_causality(
     let p = best_p;
 
     let df1 = p as f64;
-    let df2 = (t_eff - (2 * p + 1)) as f64;
+    let df2 = (best_t_eff - (2 * p + 1)) as f64;
     if df2 <= 0.0 {
         return None;
     }
@@ -550,8 +564,9 @@ pub fn stationary_block_bootstrap(
     use rand::rngs::StdRng;
     use rand::{Rng, SeedableRng};
 
-    let n = data.len();
-    if n == 0 || data.iter().any(|v| !v.is_finite()) {
+    let clean: Vec<f64> = data.iter().copied().filter(|v| v.is_finite()).collect();
+    let n = clean.len();
+    if n == 0 {
         return Vec::new();
     }
     const MAX_BOOTSTRAP_RESAMPLES: usize = 10_000;
@@ -569,7 +584,7 @@ pub fn stationary_block_bootstrap(
         let mut sample = Vec::with_capacity(n);
         let mut idx = rng.gen_range(0..n);
         for _ in 0..n {
-            sample.push(data[idx]);
+            sample.push(clean[idx]);
             // With probability p_geom start a new block; otherwise increment circularly
             if rng.gen::<f64>() < p_geom {
                 idx = rng.gen_range(0..n);
@@ -983,6 +998,32 @@ mod tests {
             "F-statistic must exceed critical threshold"
         );
         assert!(result.rss_unrestricted < result.rss_restricted);
+
+        // Arrow-of-time falsification oracle: reversing both series must NOT show reverse causal flow
+        let x_rev: Vec<f64> = x.iter().copied().rev().collect();
+        let y_rev: Vec<f64> = y.iter().copied().rev().collect();
+        let rev_res = test_granger_causality(&x_rev, &y_rev, 1).expect("Reversed test should run");
+        assert!(
+            rev_res.f_statistic < result.f_statistic * 0.25,
+            "Time-reversed F={} should collapse vs forward F={}",
+            rev_res.f_statistic,
+            result.f_statistic
+        );
+    }
+
+    #[test]
+    fn test_granger_causality_gap_aware_single_nan_survivability() {
+        let n = 80;
+        let mut x = vec![0.0f64; n];
+        let mut y = vec![0.0f64; n];
+        for t in 1..n {
+            x[t] = 0.4 * x[t - 1] + ((t * 7919) % 100) as f64 / 100.0 - 0.5;
+            y[t] = 0.3 * y[t - 1] + 0.85 * x[t - 1] + ((t * 3571) % 100) as f64 / 200.0 - 0.25;
+        }
+        x[25] = f64::NAN; // Single missing epoch must not discard the entire 80-point series
+        let result =
+            test_granger_causality(&x, &y, 1).expect("Gap-aware Granger test should recover");
+        assert!(result.is_significant);
     }
 
     #[test]
@@ -1009,6 +1050,12 @@ mod tests {
         let samples = stationary_block_bootstrap(&data, 50, 0.25, 42);
         assert_eq!(samples.len(), 50);
         assert_eq!(samples[0].len(), 50);
+
+        let gapped = [1.0, f64::NAN, 2.0, 3.0, f64::INFINITY, 4.0];
+        let gapped_samples = stationary_block_bootstrap(&gapped, 10, 0.25, 42);
+        assert_eq!(gapped_samples.len(), 10);
+        assert_eq!(gapped_samples[0].len(), 4);
+        assert!(gapped_samples.iter().flatten().all(|v| v.is_finite()));
     }
 
     #[test]

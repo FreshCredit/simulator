@@ -142,33 +142,106 @@ const BRAIN_REGIONS = {
         description: 'Visual layout & typographic margin contrast (Sim D16)'
     },
 
-    // Extended Full-Body Wet-Lab Visceral & Metabolic Nodes
+    // Extended Full-Body Wet-Lab Visceral, Endocrine, Vascular, Cellular & Somatic Nodes
+    scn_photoreceptor: {
+        name: 'SCN & Retina (Hue Lux/Kelvin · Daylight · Temp Δ)',
+        coordinates: [0, 8, 22],
+        explosionVector: [0, 1.1, 1.5],
+        neuromodulator: 'serotonin',
+        color: 0x38BDF8,
+        radius: 3.4,
+        tier: 'cranial',
+        description: 'Circadian Photic Zeitgeber (Hue Kelvin/Lux, TimeInDaylight, Watch wrist temp Δ)'
+    },
     cardiac_vagus_node: {
-        name: 'Cardiac Vagal Plexus (Apple Watch · Whoop · Oura)',
-        coordinates: [0, -10, -50],
-        explosionVector: [0, -0.6, -2.4],
+        name: 'Cardiac Vagal Plexus (Watch RMSSD · Sleep · SpO2)',
+        coordinates: [0, -18, -32],
+        explosionVector: [0, -0.8, -1.5],
         neuromodulator: 'oxytocin',
-        color: 0xEC4899,  // Pink
-        radius: 6.5,
-        description: 'Parasympathetic vagal tone, beat-to-beat RMSSD heart rate variability & nocturnal sleep'
+        color: 0xEC4899,
+        radius: 6.2,
+        tier: 'body',
+        description: 'Parasympathetic vagal tone, beat-to-beat RMSSD HRV & REM/N3 autonomic recovery'
     },
     pulmonary_metabolic_node: {
-        name: 'Pulmonary Respiratory & Mitochondria (PNOĒ · Lumen)',
-        coordinates: [24, 10, -45],
-        explosionVector: [1.8, 0.8, -2.0],
+        name: 'Lungs & Mitochondria (Airofit · Aranet4 CO2 · PNOĒ)',
+        coordinates: [24, -10, -28],
+        explosionVector: [1.8, -0.3, -1.2],
         neuromodulator: 'mixed',
-        color: 0x06B6D4,  // Cyan
+        color: 0x06B6D4,
         radius: 5.8,
-        description: 'Exhaled CO2%, VO2 Max, VCO2, and Respiratory Exchange Ratio (RER fat vs. carb burn)'
+        tier: 'body',
+        description: 'Airofit MIP/MEP/VC, Aranet4 NDIR CO2/hPa, and respiratory calibration'
+    },
+    adrenal_glands_node: {
+        name: 'Adrenal Cortex & Medulla (Serum Cortisol · 4-Pt CAR)',
+        coordinates: [16, -28, -24],
+        explosionVector: [1.4, -1.2, -1.0],
+        neuromodulator: 'cortisol',
+        color: 0xDC143C,
+        radius: 4.5,
+        tier: 'body',
+        description: 'Morning Serum Cortisol, DHEA-S, 4-pt Salivary CAR (AUCi/AUCg) & Hair Cortisol'
     },
     hepatic_glucose_node: {
-        name: 'Hepatic-Pancreatic Glycemic Node (Dexcom Stelo / G7)',
-        coordinates: [-24, 10, -48],
-        explosionVector: [-1.8, 0.8, -2.2],
+        name: 'Liver & Pancreas (CGM · HOMA-IR · Nutrition Kernel)',
+        coordinates: [-22, -24, -26],
+        explosionVector: [-1.7, -1.0, -1.1],
         neuromodulator: 'cortisol',
-        color: 0xEAB308,  // Amber
+        color: 0xEAB308,
         radius: 6.0,
-        description: 'Interstitial glucose, Time-in-Range (TIR), Glycemic CV% & Cortisol gluconeogenesis'
+        tier: 'body',
+        description: 'CGM interstitial dG/dt, Fasting Insulin, HOMA-IR, HbA1c & postprandial kernel'
+    },
+    enteric_gut_node: {
+        name: 'Enteric Plexus & Gut (Throne · TBW · 5-HT Motility)',
+        coordinates: [0, -36, -20],
+        explosionVector: [0, -1.8, -0.8],
+        neuromodulator: 'serotonin',
+        color: 0x6495ED,
+        radius: 5.6,
+        tier: 'body',
+        description: 'Throne Bristol motility, urinary hydration, BIA TBW% & peripheral 5-HT'
+    },
+    vascular_endothelial_node: {
+        name: 'Vascular Endothelium (Hilo BP · hs-CRP · ApoB · NLR)',
+        coordinates: [-24, -4, -22],
+        explosionVector: [-1.8, 0.2, -0.9],
+        neuromodulator: 'adrenaline',
+        color: 0xFF8C00,
+        radius: 5.2,
+        tier: 'body',
+        description: 'Hilo cuffless SBP/DBP & nocturnal dipping, hs-CRP, ApoB, Lipid Panel & CBC NLR'
+    },
+    skeletal_muscle_node: {
+        name: 'Skeletal Muscle (MIDI Motor · Training · T/E2 · BIA)',
+        coordinates: [28, -32, -14],
+        explosionVector: [2.0, -1.5, -0.4],
+        neuromodulator: 'dopamine',
+        color: 0x22C55E,
+        radius: 5.8,
+        tier: 'body',
+        description: 'Neuromotor cost-of-work, resistance turnover, Free T/SHBG/E2 & lean body mass'
+    },
+    cellular_remodeling_node: {
+        name: 'Reproductive & Cellular Remodeling (90-Day Cycles)',
+        coordinates: [18, -42, -8],
+        explosionVector: [1.3, -2.0, -0.2],
+        neuromodulator: 'oxytocin',
+        color: 0xF472B6,
+        radius: 4.4,
+        tier: 'body',
+        description: '90-day spermatogenesis remodeling (concentration, motility, morphology, HPG axis)'
+    },
+    genomic_follicular_node: {
+        name: '30x WGS & Segmental Hair (FKBP5 · COMT · FAAH)',
+        coordinates: [-26, 22, -14],
+        explosionVector: [-1.9, 1.4, -0.5],
+        neuromodulator: 'mixed',
+        color: 0xA855F7,
+        radius: 4.6,
+        tier: 'body',
+        description: '30x WGS priors (FKBP5/COMT/DRD2/FAAH/CNR1/CYP1A2) & segmental hair archive'
     }
 };
 
@@ -300,8 +373,8 @@ class BrainVisualization {
             this.controls.enableRotate = this.options.enableRotation;
             this.controls.enableZoom = this.options.enableZoom;
             this.controls.enablePan = true;
-            this.controls.minDistance = 50;
-            this.controls.maxDistance = 200;
+            this.controls.minDistance = 40;
+            this.controls.maxDistance = 360;
         }
 
         // Lighting
@@ -417,11 +490,24 @@ class BrainVisualization {
             ['superior_temporal_gyrus', 'insula'],
             ['prefrontal_cortex', 'default_mode_network'],
             ['visual_cortex', 'prefrontal_cortex'],
+            ['scn_photoreceptor', 'hypothalamus'],
+            ['scn_photoreceptor', 'raphe_nuclei'],
             ['hypothalamus', 'cardiac_vagus_node'],
             ['locus_coeruleus', 'cardiac_vagus_node'],
+            ['pvn', 'adrenal_glands_node'],
+            ['adrenal_glands_node', 'hepatic_glucose_node'],
             ['cardiac_vagus_node', 'pulmonary_metabolic_node'],
-            ['pvn', 'hepatic_glucose_node'],
-            ['hepatic_glucose_node', 'pulmonary_metabolic_node']
+            ['cardiac_vagus_node', 'vascular_endothelial_node'],
+            ['adrenal_glands_node', 'vascular_endothelial_node'],
+            ['hepatic_glucose_node', 'pulmonary_metabolic_node'],
+            ['hepatic_glucose_node', 'enteric_gut_node'],
+            ['raphe_nuclei', 'enteric_gut_node'],
+            ['pulmonary_metabolic_node', 'skeletal_muscle_node'],
+            ['hepatic_glucose_node', 'skeletal_muscle_node'],
+            ['adrenal_glands_node', 'cellular_remodeling_node'],
+            ['skeletal_muscle_node', 'cellular_remodeling_node'],
+            ['genomic_follicular_node', 'prefrontal_cortex'],
+            ['genomic_follicular_node', 'adrenal_glands_node']
         ];
 
         const lineMaterial = new THREE.LineBasicMaterial({
@@ -654,27 +740,23 @@ class BrainVisualization {
         const ainsActivation = isCloaked ? 0.2324 : (c > 0.35 ? 0.5810 : 0.0037);
 
         const activations = {
-            // Dopaminergic regions
+            // Dopaminergic cranial regions
             vta: d,
-            nacc: d * 0.8,
-            sn: d * 0.85,
+            nacc: d * 0.85,
             
-            // Oxytocin regions
+            // Oxytocin cranial regions
             hypothalamus: o,
-            pvns: o * 0.9,
             
-            // Cortisol regions
+            // Cortisol cranial regions
             amygdala: c,
-            pvn: c * 0.9,
-            hippocampus: Math.max(0, Math.min(1, c * 0.8 + 0.1)),
+            pvn: c * 0.92,
             
-            // Adrenaline regions
+            // Adrenaline cranial regions
             locus_coeruleus: a,
-            pituitary: a * 0.8,
             
-            // Serotonin regions
+            // Serotonin cranial regions
             raphe_nuclei: s,
-            drn: s * 0.95,
+            scn_photoreceptor: Math.max(0, Math.min(1, s * 0.85 + 0.1)),
             
             // Higher-order regions (mixed) - Sim D21 TRIBE v2 cortical mapping
             prefrontal_cortex: ((d + s) / 2) * executiveGate,
@@ -682,7 +764,18 @@ class BrainVisualization {
             insula: ainsActivation,
             superior_temporal_gyrus: isCloaked ? 0.08 : 0.16,
             default_mode_network: Math.max(0, Math.min(1, 0.40 + c * 0.3)),
-            visual_cortex: Math.max(0, Math.min(1, 0.35 + (isCloaked ? 0.35 : 0.0)))
+            visual_cortex: Math.max(0, Math.min(1, 0.35 + (isCloaked ? 0.35 : 0.0))),
+
+            // Peripheral full-body biomarker organ nodes
+            cardiac_vagus_node: Math.max(0, Math.min(1, (o + s) * 0.5)),
+            pulmonary_metabolic_node: Math.max(0, Math.min(1, (a + d) * 0.45 + 0.1)),
+            adrenal_glands_node: Math.max(0, Math.min(1, c * 0.95 + a * 0.15)),
+            hepatic_glucose_node: Math.max(0, Math.min(1, c * 0.75 + a * 0.25)),
+            enteric_gut_node: Math.max(0, Math.min(1, s * 0.9)),
+            vascular_endothelial_node: Math.max(0, Math.min(1, a * 0.65 + c * 0.35)),
+            skeletal_muscle_node: Math.max(0, Math.min(1, (d * 0.6 + a * 0.4) * executiveGate)),
+            cellular_remodeling_node: Math.max(0, Math.min(1, (o * 0.5 + s * 0.5))),
+            genomic_follicular_node: Math.max(0, Math.min(1, (c + d + s) / 3))
         };
         
         console.log('[BrainViz] Computed activations:', Object.entries(activations).map(([k, v]) => `${k}=${v.toFixed(3)}`).join(', '));
@@ -693,6 +786,32 @@ class BrainVisualization {
         this.setLiveActivity(isAlive);
         
         console.log('[BrainViz] updateFromDocas complete');
+    }
+
+    /**
+     * Update peripheral organ and neural nodes directly from normalized TFP/DOCAS biomarkers.
+     */
+    updateFromBiomarkers(biomarkers = {}, immediate = false) {
+        const clamp01 = (v) => Math.max(0, Math.min(1, Number(v) || 0));
+        const activations = {};
+        if (biomarkers.fnirs_hbo2_umol != null) activations.prefrontal_cortex = clamp01(0.5 + Number(biomarkers.fnirs_hbo2_umol) / 4.0);
+        if (biomarkers.hrv_rmssd_ms != null) activations.cardiac_vagus_node = clamp01(Number(biomarkers.hrv_rmssd_ms) / 100.0);
+        if (biomarkers.glucose_mg_dl != null) activations.hepatic_glucose_node = clamp01((Number(biomarkers.glucose_mg_dl) - 70.0) / 80.0);
+        if (biomarkers.morning_cortisol_ug_dl != null) activations.adrenal_glands_node = clamp01(Number(biomarkers.morning_cortisol_ug_dl) / 25.0);
+        if (biomarkers.hs_crp_mg_l != null || biomarkers.sbp_mmhg != null) {
+            const crp = Number(biomarkers.hs_crp_mg_l || 0) / 3.0;
+            const sbp = biomarkers.sbp_mmhg != null ? (Number(biomarkers.sbp_mmhg) - 105.0) / 40.0 : 0;
+            activations.vascular_endothelial_node = clamp01(Math.max(crp, sbp));
+        }
+        if (biomarkers.co2_ppm != null || biomarkers.mip_cmh2o != null) {
+            activations.pulmonary_metabolic_node = clamp01(biomarkers.co2_ppm != null ? (Number(biomarkers.co2_ppm) - 400.0) / 1200.0 : 0.3);
+        }
+        if (biomarkers.free_testosterone_pg_ml != null) activations.skeletal_muscle_node = clamp01(Number(biomarkers.free_testosterone_pg_ml) / 180.0);
+        if (biomarkers.progressive_motility_pct != null) activations.cellular_remodeling_node = clamp01(Number(biomarkers.progressive_motility_pct) / 100.0);
+        if (biomarkers.hydration_index != null) activations.enteric_gut_node = clamp01(Number(biomarkers.hydration_index) / 100.0);
+        if (biomarkers.photic_zeitgeber_index != null) activations.scn_photoreceptor = clamp01(Number(biomarkers.photic_zeitgeber_index) / 8.0);
+        if (biomarkers.hair_cortisol_pg_mg != null) activations.genomic_follicular_node = clamp01(Number(biomarkers.hair_cortisol_pg_mg) / 25.0);
+        if (Object.keys(activations).length > 0) this.updateActivations(activations, immediate);
     }
 
     /**
@@ -902,16 +1021,22 @@ class BrainVisualization {
         this.explodeButton = button;
     }
 
-    toggleExplodedView() {
-        this.targetExplosionFactor = this.targetExplosionFactor > 0.5 ? 0.0 : 1.0;
+    setExplosionFactor(factor) {
+        const clamped = Math.max(0, Math.min(1, Number(factor) || 0));
+        this.targetExplosionFactor = clamped;
         if (this.explodeButton) {
-            this.explodeButton.innerHTML = this.targetExplosionFactor > 0.5 ? '🧩 Assemble' : '💥 Dissect';
+            this.explodeButton.innerHTML = clamped > 0.5 ? '🧩 Assemble' : '💥 Dissect';
         }
     }
 
+    toggleExplodedView() {
+        this.setExplosionFactor(this.targetExplosionFactor > 0.5 ? 0.0 : 1.0);
+    }
+
     updateExplosionPositions() {
-        const mult = 26.0;
-        this.regions.forEach((region, key) => {
+        const mult = 22.0;
+        const showDissectLabels = this.explosionFactor > 0.25;
+        this.regions.forEach((region) => {
             const base = region.data.coordinates;
             const vec = region.data.explosionVector || [0, 0, 0];
             const curX = base[0] + vec[0] * this.explosionFactor * mult;
@@ -922,8 +1047,14 @@ class BrainVisualization {
             region.glow.position.set(curX, curY, curZ);
             if (region.label) {
                 region.label.position.set(curX, curY + region.data.radius + 6, curZ);
+                region.label.visible = showDissectLabels;
             }
         });
+
+        if (this.camera && !this.isDestroyed) {
+            const targetZ = 120 + this.explosionFactor * 95;
+            this.camera.position.z += (targetZ - this.camera.position.z) * 0.15;
+        }
 
         if (this.connectionLines) {
             this.connectionLines.forEach(({ line, fromKey, toKey }) => {
@@ -1392,11 +1523,17 @@ class BrainVisualizationControls {
                 <div class="control-group">
                     <label>View:</label>
                     <select id="view-select">
-                        <option value="default">Default</option>
-                        <option value="dopamine">Dopamine System</option>
-                        <option value="cortisol">Stress System</option>
-                        <option value="social">Social System</option>
+                        <option value="default">All Systems (Brain + Body)</option>
+                        <option value="cranial">Cranial / Neural Only</option>
+                        <option value="body">Peripheral Biomarker Organs</option>
+                        <option value="dopamine">Dopamine &amp; Skeletal Drive</option>
+                        <option value="cortisol">Stress / HPA / Glycemic</option>
+                        <option value="serotonin">Serotonin / Gut / Circadian</option>
+                        <option value="social">Social / Oxytocin / Cellular</option>
                     </select>
+                    <label for="dissect-slider">Dissect:</label>
+                    <input type="range" id="dissect-slider" min="0" max="100" value="0">
+                    <span id="dissect-display">0%</span>
                     <button id="btn-export">Export Image</button>
                 </div>
                 <div class="legend">
@@ -1521,6 +1658,12 @@ class BrainVisualizationControls {
         document.getElementById('view-select').addEventListener('change', (e) => {
             this.setView(e.target.value);
         });
+        document.getElementById('dissect-slider')?.addEventListener('input', (e) => {
+            const pct = Number(e.target.value) || 0;
+            this.viz.setExplosionFactor(pct / 100.0);
+            const disp = document.getElementById('dissect-display');
+            if (disp) disp.textContent = `${pct}%`;
+        });
     }
 
     setView(viewName) {
@@ -1530,18 +1673,33 @@ class BrainVisualizationControls {
         });
 
         switch (viewName) {
+            case 'cranial':
+                this.viz.regions.forEach((region) => {
+                    region.mesh.visible = (region.data.tier || 'cranial') === 'cranial';
+                });
+                break;
+            case 'body':
+                this.viz.regions.forEach((region) => {
+                    region.mesh.visible = region.data.tier === 'body';
+                });
+                break;
             case 'dopamine':
-                this.viz.regions.forEach((region, key) => {
+                this.viz.regions.forEach((region) => {
                     region.mesh.visible = region.data.neuromodulator === 'dopamine';
                 });
                 break;
             case 'cortisol':
-                this.viz.regions.forEach((region, key) => {
+                this.viz.regions.forEach((region) => {
                     region.mesh.visible = ['cortisol', 'adrenaline'].includes(region.data.neuromodulator);
                 });
                 break;
+            case 'serotonin':
+                this.viz.regions.forEach((region) => {
+                    region.mesh.visible = region.data.neuromodulator === 'serotonin';
+                });
+                break;
             case 'social':
-                this.viz.regions.forEach((region, key) => {
+                this.viz.regions.forEach((region) => {
                     region.mesh.visible = ['oxytocin', 'mixed'].includes(region.data.neuromodulator);
                 });
                 break;
